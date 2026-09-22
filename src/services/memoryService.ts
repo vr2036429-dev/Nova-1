@@ -18,7 +18,7 @@ export interface RecentContext {
 
 export class MemoryService {
   private preferences: UserPreferences = {
-    userName: 'Asik',
+    userName: 'ASIK',
     wakeWord: 'ULTRON',
     voiceMode: 'continuous',
     ttsVoiceName: '',

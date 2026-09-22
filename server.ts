@@ -267,10 +267,17 @@ function generateOfflineResponse(userPrompt: string, userName: string = 'Asik') 
     };
   }
 
-  // Screen reading
-  if (p.includes('what is on my screen') || p.includes('read screen') || p.includes('screen') && (p.includes('what') || p.includes('read'))) {
+  // Screen reading & Error fixing ("Is screen par error fix karo", "read screen", "screen error")
+  if (
+    p.includes('screen') || 
+    p.includes('error fix') || 
+    p.includes('fix karo') || 
+    p.includes('karo fix') ||
+    p.includes('what is on my screen') || 
+    p.includes('read screen')
+  ) {
     return {
-      text: `Analyzing active display viewport and accessibility tree...`,
+      text: `Scanning active viewport and accessibility tree to identify UI elements and error diagnostics on screen, ${userName}.`,
       toolCalls: [{ name: 'readScreen', args: { targetElement: 'all' } }],
       intent: 'SCREEN_INTELLIGENCE',
     };
@@ -795,7 +802,7 @@ ${JSON.stringify(memoryContext)}`;
           text: responseText || `Acknowledged, ${userName}.`,
           toolCalls,
           model: 'gemini-3.8-flash',
-          provider: 'Gemini',
+          provider: 'ULTRON Neural Brain',
         });
       } catch (geminiError: any) {
         console.log('[ULTRON Core] Processing prompt through local autonomous intelligence pipeline.');

@@ -1,5 +1,6 @@
 import { LiveVoiceState, ToolCall, ToolResult } from '../types';
 import { toolRegistry } from './toolRegistry';
+import { voicePipelineDiagnostics } from './voicePipelineDiagnostics';
 
 // ============================================================================
 // 1. Audio Input Manager (16kHz PCM Capture & Downsampling)
@@ -26,6 +27,10 @@ export class AudioInputManager {
         await this.audioContext.resume();
       }
 
+      voicePipelineDiagnostics.startTurn();
+      voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'active', 'Requesting microphone permission...');
+      voicePipelineDiagnostics.updateStage('AUDIO_INPUT', 'active', 'Initializing hardware acoustic stream...');
+
       // Robust Android/Browser Acoustic Echo Cancellation & Noise Suppression
       this.mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -35,6 +40,9 @@ export class AudioInputManager {
           channelCount: 1,
         },
       });
+
+      voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'success', 'Microphone permission granted.');
+      voicePipelineDiagnostics.updateStage('AUDIO_INPUT', 'success', 'Hardware audio input online (Echo Cancellation, Noise Suppression, AGC).');
 
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
@@ -79,6 +87,8 @@ export class AudioInputManager {
       };
 
       this.isCapturing = true;
+      voicePipelineDiagnostics.updateStage('AUDIO_CAPTURE', 'success', `Acoustic PCM capture active (${inputSampleRate}Hz -> 16kHz downsampler online).`);
+      voicePipelineDiagnostics.updateStage('VAD', 'active', 'VAD listening for acoustic energy...');
       console.log(`[AudioInputManager] Microphonic capture active at ${inputSampleRate}Hz -> downsampling to 16kHz PCM.`);
       return true;
     } catch (err: any) {
@@ -552,24 +562,34 @@ export class LiveVoiceSession {
 
         if (msg.type === 'ready') {
           console.log(`[LiveVoiceSession] Native Live Audio-to-Audio active with model: ${msg.model}, voice: ${msg.voice}`);
+          voicePipelineDiagnostics.updateStage('LIVE_SESSION', 'success', `Connected to Live Audio model: ${msg.model}`);
+          voicePipelineDiagnostics.updateStage('UI_STATE', 'active', 'UI transitioned to LISTENING');
           this.setState('LISTENING');
         } else if (msg.type === 'audio') {
           // Play incoming 24kHz PCM chunk progressively
+          voicePipelineDiagnostics.updateStage('RESPONSE_AUDIO', 'active', 'Receiving streaming 24kHz PCM response audio...');
+          voicePipelineDiagnostics.updateStage('AUDIO_OUTPUT', 'active', 'AudioTrack playing 24kHz stream through speaker');
           this.outputManager.enqueuePcmChunk(msg.data, 24000);
         } else if (msg.type === 'transcript') {
           if (msg.role === 'assistant') {
             this.currentAssistantSpokenText += msg.text;
+            voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'active', `AI response stream: "${this.currentAssistantSpokenText.slice(-50)}"`);
             this.callbacks?.onAssistantTranscript(this.currentAssistantSpokenText);
           } else if (msg.role === 'user') {
             this.currentSpokenUserText += msg.text;
+            voicePipelineDiagnostics.updateStage('AUDIO_STREAM', 'success', `User speech: "${this.currentSpokenUserText.slice(-50)}"`);
             this.callbacks?.onUserTranscript(this.currentSpokenUserText, false);
           }
         } else if (msg.type === 'interrupted') {
           console.log('[LiveVoiceSession] Interruption acknowledged by AI model.');
+          voicePipelineDiagnostics.updateStage('VAD', 'active', 'Barge-in registered; halting AI audio playback.');
           this.outputManager.stopCurrentPlayback();
           this.setState('USER_SPEAKING');
         } else if (msg.type === 'turnComplete') {
           // Assistant completed speaking
+          voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'success', 'AI response stream completed.');
+          voicePipelineDiagnostics.updateStage('AUDIO_OUTPUT', 'success', 'Audio output playback concluded.');
+          voicePipelineDiagnostics.updateStage('UI_STATE', 'active', 'UI returned to LISTENING standby.');
           if (this.currentAssistantSpokenText.trim().length > 0) {
             console.log('[LiveVoiceSession] Assistant turn complete:', this.currentAssistantSpokenText);
             this.currentAssistantSpokenText = '';
@@ -601,6 +621,7 @@ export class LiveVoiceSession {
           }
         } else if (msg.type === 'error') {
           console.warn('[LiveVoiceSession] Server notice:', msg.message);
+          voicePipelineDiagnostics.updateStage('LIVE_SESSION', 'warning', msg.message);
           this.callbacks?.onError(msg.message, msg.canFallback !== false);
         }
       } catch (err: any) {

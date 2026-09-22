@@ -222,6 +222,31 @@ export interface CapabilityItem {
 // -------------------------------------------------------------
 // Self-Diagnostic & System Health Types
 // -------------------------------------------------------------
+export type VoicePipelineStageId = 
+  | 'MIC_PERMISSION'
+  | 'AUDIO_INPUT'
+  | 'AUDIO_CAPTURE'
+  | 'VAD'
+  | 'LIVE_SESSION'
+  | 'AUDIO_STREAM'
+  | 'AI_RESPONSE'
+  | 'RESPONSE_AUDIO'
+  | 'AUDIO_OUTPUT'
+  | 'UI_STATE';
+
+export type VoicePipelineStageStatus = 'idle' | 'pending' | 'active' | 'success' | 'warning' | 'error';
+
+export interface VoicePipelineStageState {
+  id: VoicePipelineStageId;
+  name: string;
+  stepNumber: number;
+  status: VoicePipelineStageStatus;
+  message: string;
+  latencyMs?: number;
+  lastUpdated: string;
+  details?: Record<string, any>;
+}
+
 export interface DiagnosticCheck {
   id: string;
   name: string;

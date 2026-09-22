@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { UltronState, VoiceMode, VoiceEngineType, LiveVoiceState } from '../types';
 import { UltronOrb } from './UltronOrb';
+import { VoicePipelineDiagnosticsPanel } from './VoicePipelineDiagnosticsPanel';
 
 interface VoiceHudViewProps {
   state: UltronState;
@@ -242,6 +243,12 @@ export const VoiceHudView: React.FC<VoiceHudViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Live 10-Stage Voice Pipeline Telemetry & Self-Test Panel */}
+      <VoicePipelineDiagnosticsPanel 
+        className="my-1.5"
+        onRunTestUtterance={(testPrompt) => onSubmitCommand(testPrompt, true)}
+      />
 
       {/* Quick Action Chips */}
       <div className="w-full max-w-2xl mt-1 mb-2">

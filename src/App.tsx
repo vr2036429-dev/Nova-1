@@ -30,6 +30,7 @@ import { ResearchAgentView } from './components/ResearchAgentView';
 import { DiagnosticsView } from './components/DiagnosticsView';
 import { taskContinuityEngine } from './services/taskContinuityEngine';
 import { diagnosticEngine } from './services/diagnosticEngine';
+import { voicePipelineDiagnostics } from './services/voicePipelineDiagnostics';
 import { BiometricModal } from './components/BiometricModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { ScreenReaderModal } from './components/ScreenReaderModal';
@@ -178,6 +179,12 @@ export default function App() {
     setMessages((prev) => [...prev, userMsg]);
     setTranscription('');
     setState('THINKING');
+
+    if (isVoiceInput) {
+      voicePipelineDiagnostics.updateStage('AUDIO_STREAM', 'success', `Captured utterance: "${trimmed}"`);
+      voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'active', 'Dispatching query to ULTRON multimodal intelligence brain...');
+      voicePipelineDiagnostics.updateStage('UI_STATE', 'active', 'UI state transitioned to THINKING');
+    }
 
     // Contextual Reference Resolution ("do that again", "open the app we used")
     const resolvedResult = memoryService.resolveContextualReference(commandText);
@@ -415,6 +422,9 @@ export default function App() {
 
       // 6. Voice Synthesis - Speak the Response Aloud!
       // This is the critical voice-to-AI link requested by user!
+      voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'success', `Response ready: "${assistantText.slice(0, 45)}..."`);
+      voicePipelineDiagnostics.updateStage('RESPONSE_AUDIO', 'active', 'Synthesizing voice audio stream via speech engine...');
+      voicePipelineDiagnostics.updateStage('UI_STATE', 'active', 'UI state transitioned to SPEAKING');
       setState('SPEAKING');
       voiceService.speak(assistantText);
 
