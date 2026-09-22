@@ -1,0 +1,7 @@
+{
+  "name": "ULTRON - Jarvis Android Voice Assistant",
+  "description": "Futuristic natural voice Jarvis Android AI assistant with continuous voice interaction, tool execution, device automation, biometric security, and offline capabilities.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
