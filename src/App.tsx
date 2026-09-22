@@ -24,6 +24,12 @@ import { VoiceHudView } from './components/VoiceHudView';
 import { ChatView } from './components/ChatView';
 import { AutomationView } from './components/AutomationView';
 import { ToolsView } from './components/ToolsView';
+import { TaskContinuityView } from './components/TaskContinuityView';
+import { MultimodalView } from './components/MultimodalView';
+import { ResearchAgentView } from './components/ResearchAgentView';
+import { DiagnosticsView } from './components/DiagnosticsView';
+import { taskContinuityEngine } from './services/taskContinuityEngine';
+import { diagnosticEngine } from './services/diagnosticEngine';
 import { BiometricModal } from './components/BiometricModal';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { ScreenReaderModal } from './components/ScreenReaderModal';
@@ -172,6 +178,72 @@ export default function App() {
     setMessages((prev) => [...prev, userMsg]);
     setTranscription('');
     setState('THINKING');
+
+    // Contextual Reference Resolution ("do that again", "open the app we used")
+    const resolvedResult = memoryService.resolveContextualReference(commandText);
+    if (resolvedResult.resolvedPrompt && resolvedResult.resolvedPrompt !== commandText) {
+      console.log(`[ULTRON Core] Context resolved reference: "${commandText}" -> "${resolvedResult.resolvedPrompt}"`);
+      commandText = resolvedResult.resolvedPrompt;
+    }
+
+    // Direct Voice Directive: System Diagnostics Check
+    const lowerCmd = commandText.toLowerCase();
+    if (lowerCmd.includes('run diagnostic') || lowerCmd.includes('system check') || lowerCmd.includes('check system health')) {
+      const report = await diagnosticEngine.runSystemSelfCheck();
+      setActiveTab('diagnostics');
+      const passCount = report.checks.filter((c) => c.status === 'pass').length;
+      const text = `System diagnostics completed. Status is ${report.healthy ? 'OPTIMAL' : 'ATTENTION REQUIRED'} with ${passCount} of ${report.checks.length} system checks passing. ${report.summary}`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `diag_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      setState('SPEAKING');
+      voiceService.speak(text);
+      return;
+    }
+
+    // Direct Voice Directive: Resume / Continue Task
+    if (lowerCmd.includes('continue task') || lowerCmd.includes('resume task') || lowerCmd.includes('what task is running')) {
+      const activeTask = taskContinuityEngine.getActiveTask();
+      setActiveTab('tasks');
+      if (activeTask) {
+        taskContinuityEngine.resumeTask();
+        const text = `Resuming task: "${activeTask.title}". Current step ${activeTask.currentStepIndex + 1} of ${activeTask.steps.length}: ${activeTask.steps[activeTask.currentStepIndex]?.title || 'Finalizing'}.`;
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `task_${Date.now()}`,
+            role: 'assistant',
+            content: text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+        setAssistantSpokenText(text);
+        setState('SPEAKING');
+        voiceService.speak(text);
+      } else {
+        const text = "No interrupted or background tasks are currently in the queue. All systems are nominal.";
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `task_${Date.now()}`,
+            role: 'assistant',
+            content: text,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          },
+        ]);
+        setAssistantSpokenText(text);
+        setState('SPEAKING');
+        voiceService.speak(text);
+      }
+      return;
+    }
 
     // 2. Multi-step Workflow check
     const detectedSteps = automationEngine.parseMultiStepIntent(commandText);
@@ -327,6 +399,19 @@ export default function App() {
 
       setMessages((prev) => [...prev, assistantMsg]);
       setAssistantSpokenText(assistantText);
+
+      // Record short-term contextual memory for natural reference resolution ("do that again", "open that app")
+      memoryService.recordContext({
+        userIntent: commandText,
+        lastToolExecuted: toolCalls[0]?.name,
+        targetApp: toolCalls.find((t) => t.name === 'openApp')?.args.appName,
+        targetFile: toolCalls.find((t) => t.name === 'fileOperation')?.args.fileName,
+        targetContact: toolCalls.find((t) => t.name === 'makePhoneCall')?.args.contactName,
+        entities: {
+          toolsUsed: toolCalls.map((t) => t.name),
+          lastSpokenSummary: assistantText.slice(0, 100),
+        },
+      });
 
       // 6. Voice Synthesis - Speak the Response Aloud!
       // This is the critical voice-to-AI link requested by user!
@@ -700,6 +785,33 @@ export default function App() {
               handleExecuteCommand(`Research ${q}`, false);
             }}
           />
+        )}
+
+        {activeTab === 'tasks' && (
+          <TaskContinuityView
+            onExecuteTool={async (toolName, args) => {
+              const res = await toolRegistry.executeTool(
+                { id: `task_${Date.now()}`, name: toolName, args },
+                {
+                  onOpenAppModal: (appName, param) => setAppWindowModal({ isOpen: true, appName, actionParam: param }),
+                  onOpenSettingsModal: (section) => setAppWindowModal({ isOpen: true, appName: `Settings: ${section}` }),
+                }
+              );
+              return res;
+            }}
+          />
+        )}
+
+        {activeTab === 'multimodal' && (
+          <MultimodalView />
+        )}
+
+        {activeTab === 'research' && (
+          <ResearchAgentView />
+        )}
+
+        {activeTab === 'diagnostics' && (
+          <DiagnosticsView />
         )}
       </main>
 

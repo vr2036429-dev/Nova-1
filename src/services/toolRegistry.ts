@@ -1,4 +1,8 @@
 import { ToolCall, ToolResult, StoredFile, StoredNotification, ScreenElement } from '../types';
+import { diagnosticEngine } from './diagnosticEngine';
+import { taskContinuityEngine } from './taskContinuityEngine';
+import { memoryService } from './memoryService';
+import { multimodalService } from './multimodalService';
 
 export class ToolRegistryService {
   private files: StoredFile[] = [];
@@ -440,6 +444,80 @@ export class ToolRegistryService {
           success: true,
           message: `Workflow "${goal}" executed successfully with ${steps.length} automated steps.`,
           data: { goal, stepsCount: steps.length },
+          timestamp,
+        };
+      }
+
+      case 'runDiagnostics': {
+        const diagResult = await diagnosticEngine.runSystemSelfCheck();
+        return {
+          toolCallId: id,
+          toolName: name,
+          success: diagResult.healthy,
+          message: `System diagnostic check completed. ${diagResult.summary}`,
+          data: diagResult,
+          timestamp,
+        };
+      }
+
+      case 'taskControl': {
+        const action = args.action || 'resume';
+        if (action === 'pause') {
+          taskContinuityEngine.pauseTask();
+          return {
+            toolCallId: id,
+            toolName: name,
+            success: true,
+            message: 'Active task paused at latest checkpoint.',
+            timestamp,
+          };
+        } else if (action === 'resume') {
+          const resumed = taskContinuityEngine.resumeTask();
+          return {
+            toolCallId: id,
+            toolName: name,
+            success: resumed,
+            message: resumed ? 'Resumed task from safe checkpoint.' : 'No paused tasks found in continuity buffer.',
+            timestamp,
+          };
+        } else if (action === 'cancel') {
+          taskContinuityEngine.cancelTask();
+          return {
+            toolCallId: id,
+            toolName: name,
+            success: true,
+            message: 'Task cancelled and archived.',
+            timestamp,
+          };
+        } else if (action === 'restart') {
+          taskContinuityEngine.restartTask();
+          return {
+            toolCallId: id,
+            toolName: name,
+            success: true,
+            message: 'Task restarted from step 1.',
+            timestamp,
+          };
+        }
+        return {
+          toolCallId: id,
+          toolName: name,
+          success: false,
+          message: `Unknown task control command: ${action}`,
+          timestamp,
+        };
+      }
+
+      case 'screenVision': {
+        const prompt = args.prompt || 'Inspect current viewport and guide next action.';
+        const screenshot = await multimodalService.captureViewportScreenshot();
+        const analysis = await multimodalService.analyzeVisualContent(screenshot, prompt, 'screen');
+        return {
+          toolCallId: id,
+          toolName: name,
+          success: true,
+          message: `Visual screen inspection: ${analysis}`,
+          data: { analysis, prompt },
           timestamp,
         };
       }

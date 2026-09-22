@@ -13,7 +13,11 @@ import {
   Settings,
   MessageSquare,
   Wrench,
-  Flashlight
+  Flashlight,
+  Compass,
+  Eye,
+  Globe,
+  Activity
 } from 'lucide-react';
 import { UltronState, ViewTab, DeviceStatus } from '../types';
 
@@ -41,15 +45,24 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
   const getStateBadge = () => {
     switch (state) {
       case 'LISTENING':
+      case 'USER_SPEAKING':
         return { text: 'LISTENING', bg: 'bg-cyan-500/20 text-cyan-400 border-cyan-500/40', dot: 'bg-cyan-400 animate-ping' };
+      case 'UNDERSTANDING':
+        return { text: 'PERCEPTION / VISION REASONING', bg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40', dot: 'bg-indigo-400 animate-pulse' };
       case 'THINKING':
+      case 'PROCESSING':
         return { text: 'NEURAL PROCESSING', bg: 'bg-purple-500/20 text-purple-300 border-purple-500/40', dot: 'bg-purple-400 animate-spin' };
       case 'SEARCHING':
         return { text: 'WEB RESEARCH', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-400 animate-pulse' };
       case 'EXECUTING':
         return { text: 'EXECUTING TOOL', bg: 'bg-blue-500/20 text-blue-300 border-blue-500/40', dot: 'bg-blue-400 animate-bounce' };
       case 'SPEAKING':
+      case 'AI_SPEAKING':
         return { text: 'VOICE SYNTHESIS', bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-400 animate-pulse' };
+      case 'INTERRUPTED':
+        return { text: 'USER BARGE-IN', bg: 'bg-amber-500/20 text-amber-300 border-amber-500/40', dot: 'bg-amber-400' };
+      case 'RECONNECTING':
+        return { text: 'RECONNECTING AUDIO', bg: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40', dot: 'bg-yellow-400 animate-spin' };
       case 'ERROR':
         return { text: 'SYSTEM ALERT', bg: 'bg-red-500/20 text-red-300 border-red-500/40', dot: 'bg-red-400 animate-ping' };
       case 'STANDBY':
@@ -93,10 +106,10 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
         </div>
 
         {/* Center: Navigation Tabs */}
-        <nav className="flex items-center bg-[#0d1424]/80 p-0.5 rounded-xl border border-slate-800/80">
+        <nav className="flex items-center bg-[#0d1424]/90 p-0.5 rounded-xl border border-slate-800/80 overflow-x-auto max-w-[55vw] sm:max-w-none no-scrollbar">
           <button
             onClick={() => onTabChange('orb_hud')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'orb_hud'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -104,12 +117,12 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
             title="Voice HUD and Energy Orb"
           >
             <Radio className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Voice HUD</span>
+            <span className="hidden xl:inline">Voice HUD</span>
           </button>
 
           <button
             onClick={() => onTabChange('chat')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'chat'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -117,12 +130,51 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
             title="Conversation Stream"
           >
             <MessageSquare className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Chat</span>
+            <span className="hidden xl:inline">Chat</span>
+          </button>
+
+          <button
+            onClick={() => onTabChange('tasks')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'tasks'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Task Continuity & Planner"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Tasks</span>
+          </button>
+
+          <button
+            onClick={() => onTabChange('multimodal')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'multimodal'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Screen Intelligence & Vision"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Vision</span>
+          </button>
+
+          <button
+            onClick={() => onTabChange('research')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'research'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Deep Web Research Agent"
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Research</span>
           </button>
 
           <button
             onClick={() => onTabChange('automation')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'automation'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -130,12 +182,12 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
             title="Smart Workflows & Routines"
           >
             <Layers className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Automations</span>
+            <span className="hidden xl:inline">Automations</span>
           </button>
 
           <button
             onClick={() => onTabChange('tools')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'tools'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
                 : 'text-slate-400 hover:text-slate-200'
@@ -143,12 +195,25 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
             title="Tools & Android Apps"
           >
             <Wrench className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Tools</span>
+            <span className="hidden xl:inline">Tools</span>
+          </button>
+
+          <button
+            onClick={() => onTabChange('diagnostics')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'diagnostics'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="System Diagnostics & Telemetry"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Diagnostics</span>
           </button>
 
           <button
             onClick={() => onTabChange('settings')}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'settings'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                 : 'text-slate-400 hover:text-slate-200'

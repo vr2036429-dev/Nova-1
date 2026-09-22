@@ -13,6 +13,7 @@ export type UltronState =
   | 'STANDBY' 
   | 'LISTENING' 
   | 'USER_SPEAKING'
+  | 'UNDERSTANDING'
   | 'THINKING' 
   | 'PROCESSING'
   | 'SEARCHING' 
@@ -29,7 +30,16 @@ export type VoiceEngineType = 'live_audio' | 'fallback_stt_tts';
 
 export type VoiceMode = 'wake' | 'wakeword' | 'continuous' | 'push_to_talk';
 
-export type ViewTab = 'orb_hud' | 'chat' | 'automation' | 'tools' | 'settings';
+export type ViewTab = 
+  | 'orb_hud' 
+  | 'chat' 
+  | 'tasks' 
+  | 'multimodal' 
+  | 'research' 
+  | 'automation' 
+  | 'tools' 
+  | 'diagnostics' 
+  | 'settings';
 
 export type ConfirmationLevel = 1 | 2 | 3; // 1 = Safe (auto), 2 = Sensitive (confirm), 3 = Restricted (biometric)
 
@@ -46,12 +56,15 @@ export interface ToolResult {
   message: string;
   data?: any;
   timestamp: string;
+  reversible?: boolean;
+  undoData?: any;
 }
 
 export interface ResearchSource {
   title: string;
   url: string;
   snippet?: string;
+  verified?: boolean;
 }
 
 export interface Message {
@@ -64,6 +77,9 @@ export interface Message {
   sources?: ResearchSource[];
   isVoiceInput?: boolean;
   intent?: string;
+  taskId?: string;
+  timeline?: string[];
+  multimodalThumbnail?: string;
 }
 
 export interface StoredFile {
@@ -73,6 +89,7 @@ export interface StoredFile {
   size: number;
   content: string;
   updatedAt: string;
+  category?: 'document' | 'report' | 'code' | 'log' | 'data';
 }
 
 export interface StoredNotification {
@@ -83,8 +100,160 @@ export interface StoredNotification {
   timestamp: string;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   read: boolean;
+  category?: string;
 }
 
+// -------------------------------------------------------------
+// Task Continuity & Autonomous Planning Types
+// -------------------------------------------------------------
+export type TaskExecutionStatus = 
+  | 'pending' 
+  | 'running' 
+  | 'verifying' 
+  | 'completed' 
+  | 'failed' 
+  | 'recovering' 
+  | 'skipped';
+
+export interface TaskPlanStep {
+  id: string;
+  title: string;
+  description: string;
+  toolName: string;
+  args: Record<string, any>;
+  status: TaskExecutionStatus;
+  result?: string;
+  reversible?: boolean;
+  undoPayload?: any;
+}
+
+export interface TaskCheckpoint {
+  id: string;
+  taskId: string;
+  stepIndex: number;
+  stepTitle: string;
+  timestamp: string;
+  snapshotState: Record<string, any>;
+}
+
+export interface ActiveTask {
+  id: string;
+  title: string;
+  goal: string;
+  status: 'planning' | 'running' | 'paused' | 'completed' | 'failed' | 'recovering';
+  steps: TaskPlanStep[];
+  currentStepIndex: number;
+  checkpoints: TaskCheckpoint[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  summary?: string;
+}
+
+export interface ActionHistoryRecord {
+  id: string;
+  timestamp: string;
+  actionName: string;
+  description: string;
+  target?: string;
+  canUndo: boolean;
+  undone: boolean;
+  undoData?: any;
+}
+
+// -------------------------------------------------------------
+// Multimodal Perception Layer Types
+// -------------------------------------------------------------
+export type MultimodalInputType = 
+  | 'voice' 
+  | 'text' 
+  | 'screen' 
+  | 'image' 
+  | 'camera' 
+  | 'file' 
+  | 'notification' 
+  | 'web';
+
+export interface MultimodalInput {
+  id: string;
+  type: MultimodalInputType;
+  timestamp: string;
+  text?: string;
+  mediaBase64?: string;
+  mimeType?: string;
+  screenElements?: ScreenElement[];
+  metadata?: Record<string, any>;
+}
+
+export interface ScreenElement {
+  id: string;
+  label: string;
+  type: 'button' | 'input' | 'text' | 'image' | 'link' | 'card' | 'toggle' | 'list';
+  text: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  action?: string;
+  clickable?: boolean;
+  contentDescription?: string;
+}
+
+// -------------------------------------------------------------
+// Device Capability Graph & Platform Integrity
+// -------------------------------------------------------------
+export type CapabilityStatus = 
+  | 'IMPLEMENTED' 
+  | 'PARTIALLY IMPLEMENTED' 
+  | 'REQUIRES USER PERMISSION' 
+  | 'REQUIRES EXTERNAL API' 
+  | 'ANDROID PLATFORM LIMITED' 
+  | 'NOT AVAILABLE';
+
+export interface CapabilityItem {
+  id: string;
+  name: string;
+  category: 'perception' | 'voice' | 'automation' | 'tools' | 'security' | 'intelligence';
+  status: CapabilityStatus;
+  description: string;
+  platformNote: string;
+}
+
+// -------------------------------------------------------------
+// Self-Diagnostic & System Health Types
+// -------------------------------------------------------------
+export interface DiagnosticCheck {
+  id: string;
+  name: string;
+  category: 'voice' | 'ai' | 'network' | 'permissions' | 'tools' | 'storage' | 'notifications' | 'accessibility';
+  status: 'pass' | 'warn' | 'fail' | 'testing';
+  latencyMs?: number;
+  message: string;
+  recommendation?: string;
+}
+
+export type LogCategory = 
+  | 'ULTRON_AUDIO' 
+  | 'ULTRON_AI' 
+  | 'ULTRON_TOOL' 
+  | 'ULTRON_PERMISSION' 
+  | 'ULTRON_AUTOMATION' 
+  | 'ULTRON_MEMORY' 
+  | 'ULTRON_NETWORK' 
+  | 'ULTRON_ERROR';
+
+export interface AuditLog {
+  id: string;
+  timestamp: string;
+  category: LogCategory;
+  level: 'info' | 'warn' | 'error' | 'success';
+  message: string;
+  details?: Record<string, any>;
+}
+
+// -------------------------------------------------------------
+// Workflows & Automation
+// -------------------------------------------------------------
 export interface WorkflowStep {
   id: string;
   action: string;
@@ -102,6 +271,7 @@ export interface AutomationWorkflow {
   triggerPhrase: string;
   steps: WorkflowStep[];
   enabled: boolean;
+  category?: 'productivity' | 'system' | 'morning' | 'focus' | 'custom';
 }
 
 export interface DeviceStatus {
@@ -116,6 +286,9 @@ export interface DeviceStatus {
   locationEnabled?: boolean;
 }
 
+// -------------------------------------------------------------
+// User Preferences & Personalization
+// -------------------------------------------------------------
 export interface UserPreferences {
   userName: string;
   wakeWord: string;
@@ -132,6 +305,18 @@ export interface UserPreferences {
   vadSensitivity?: number; // 1 to 5 (default 3)
   voiceEngine?: VoiceEngineType;
   continuousVoiceTimeoutSeconds?: number;
+  
+  // Conversational & Emotional Adaptation
+  conversationalStyle?: 'balanced' | 'concise' | 'detailed' | 'fast' | 'technical';
+  formality?: 'formal' | 'natural_jarvis' | 'casual';
+  
+  // Privacy & Proactive Assistance
+  proactiveAssistance: boolean;
+  backgroundAnalysis: boolean;
+  notificationIntelligence: boolean;
+  screenAwareness: boolean;
+  cameraVisionEnabled: boolean;
+  autoSaveCheckpoints: boolean;
 }
 
 export interface ConfirmationRequest {
@@ -144,16 +329,4 @@ export interface ConfirmationRequest {
   params: Record<string, any>;
   onConfirm: () => void;
   onCancel: () => void;
-}
-
-export interface ScreenElement {
-  id: string;
-  label: string;
-  type: 'button' | 'input' | 'text' | 'image' | 'link' | 'card';
-  text: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  action?: string;
 }
