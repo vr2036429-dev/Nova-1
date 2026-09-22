@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { UltronState } from '../types';
 import { voiceService } from '../services/voiceService';
+import { liveVoiceSession } from '../services/liveVoiceSession';
 
 interface UltronOrbProps {
   state: UltronState;
@@ -52,17 +53,29 @@ export const UltronOrb: React.FC<UltronOrbProps> = ({ state, onClick, size = 320
       rotationRef.current += 0.015;
       pulsePhaseRef.current += 0.035;
 
-      // Read audio frequency data from voiceService
-      const freqData = voiceService.getAudioFrequencyData();
+      // Read audio frequency data from active voice engine
+      const liveFreq = liveVoiceSession.getAudioFrequencyData();
+      const legacyFreq = voiceService.getAudioFrequencyData();
+      
       let avgFreq = 0;
-      for (let i = 0; i < Math.min(freqData.length, 32); i++) {
-        avgFreq += freqData[i];
+      let hasLiveAudio = false;
+      for (let i = 0; i < Math.min(liveFreq.length, 32); i++) {
+        if (liveFreq[i] > 0) hasLiveAudio = true;
+        avgFreq += liveFreq[i];
+      }
+      if (!hasLiveAudio) {
+        avgFreq = 0;
+        for (let i = 0; i < Math.min(legacyFreq.length, 32); i++) {
+          avgFreq += legacyFreq[i];
+        }
       }
       avgFreq = avgFreq / 32; // 0 to 255
+      const freqData = hasLiveAudio ? liveFreq : legacyFreq;
 
-      // Base radius modulation
-      const audioScale = state === 'LISTENING' || state === 'SPEAKING' 
-        ? (avgFreq / 255) * 45 
+      // Base radius modulation - react dynamically to microphone or assistant audio
+      const isVoiceActive = state === 'LISTENING' || state === 'USER_SPEAKING' || state === 'SPEAKING' || state === 'AI_SPEAKING';
+      const audioScale = isVoiceActive
+        ? (avgFreq / 255) * 52 
         : Math.sin(pulsePhaseRef.current) * 6;
       
       const coreRadius = Math.max(38, 52 + audioScale);
@@ -78,11 +91,16 @@ export const UltronOrb: React.FC<UltronOrbProps> = ({ state, onClick, size = 320
         secondaryColor = '#06b6d4';
         glowColor = 'rgba(34, 211, 238, 0.65)';
         ringSpeed = 2.2;
-      } else if (state === 'THINKING') {
+      } else if (state === 'USER_SPEAKING') {
+        primaryColor = '#38bdf8'; // Electric Sky Blue
+        secondaryColor = '#0284c7';
+        glowColor = 'rgba(56, 189, 248, 0.8)';
+        ringSpeed = 3.2;
+      } else if (state === 'THINKING' || state === 'PROCESSING') {
         primaryColor = '#a855f7'; // Purple / Violet
         secondaryColor = '#3b82f6'; // Blue
-        glowColor = 'rgba(168, 85, 247, 0.6)';
-        ringSpeed = 3.5;
+        glowColor = 'rgba(168, 85, 247, 0.7)';
+        ringSpeed = 3.8;
       } else if (state === 'SEARCHING') {
         primaryColor = '#f59e0b'; // Amber Gold
         secondaryColor = '#ef4444'; // Reddish gold
@@ -93,16 +111,31 @@ export const UltronOrb: React.FC<UltronOrbProps> = ({ state, onClick, size = 320
         secondaryColor = '#06b6d4';
         glowColor = 'rgba(59, 130, 246, 0.65)';
         ringSpeed = 3.0;
-      } else if (state === 'SPEAKING') {
+      } else if (state === 'SPEAKING' || state === 'AI_SPEAKING') {
         primaryColor = '#10b981'; // Emerald Cyan
         secondaryColor = '#06b6d4';
-        glowColor = 'rgba(16, 185, 129, 0.65)';
-        ringSpeed = 1.8;
+        glowColor = 'rgba(16, 185, 129, 0.75)';
+        ringSpeed = 2.0;
+      } else if (state === 'INTERRUPTED') {
+        primaryColor = '#fbbf24'; // Amber Yellow (Barge-in reaction)
+        secondaryColor = '#f97316';
+        glowColor = 'rgba(251, 191, 36, 0.85)';
+        ringSpeed = 4.5;
+      } else if (state === 'RECONNECTING') {
+        primaryColor = '#f59e0b'; // Amber Pulse
+        secondaryColor = '#3b82f6';
+        glowColor = 'rgba(245, 158, 11, 0.5)';
+        ringSpeed = 2.0;
       } else if (state === 'ERROR') {
         primaryColor = '#ef4444'; // Crimson Red
         secondaryColor = '#b91c1c';
         glowColor = 'rgba(239, 68, 68, 0.7)';
         ringSpeed = 0.8;
+      } else if (state === 'IDLE' || state === 'STOPPED') {
+        primaryColor = '#0284c7';
+        secondaryColor = '#0f172a';
+        glowColor = 'rgba(2, 132, 199, 0.25)';
+        ringSpeed = 0.6;
       }
 
       // 1. Outermost Ambient Glow

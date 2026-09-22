@@ -124,7 +124,7 @@ export class ToolRegistryService {
     context: {
       onOpenAppModal?: (appName: string, param?: string) => void;
       onOpenSettingsModal?: (section: string) => void;
-    }
+    } = {}
   ): Promise<ToolResult> {
     const { name, args, id } = toolCall;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });

@@ -1,7 +1,9 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { GoogleGenAI, Type, FunctionDeclaration } from '@google/genai';
+import { GoogleGenAI, Type, FunctionDeclaration, Modality } from '@google/genai';
+import { WebSocketServer, WebSocket } from 'ws';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -548,6 +550,243 @@ ${JSON.stringify(memoryContext)}`;
 
 // Vite middleware or production static files
 async function startServer() {
+  const server = http.createServer(app);
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', (request, socket, head) => {
+    try {
+      const url = new URL(request.url || '', `http://${request.headers.host || 'localhost'}`);
+      if (url.pathname === '/api/live-voice') {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+          wss.emit('connection', ws, request);
+        });
+      }
+    } catch (e) {
+      console.warn('Upgrade error:', e);
+    }
+  });
+
+  // WebSocket Live Voice Connection Handler
+  wss.on('connection', async (clientWs: WebSocket) => {
+    console.log('[ULTRON Live Server] Client connected to live voice stream.');
+    let liveSession: any = null;
+    let isSessionActive = false;
+    const pendingFunctionCalls = new Map<string, string>(); // callId -> toolName
+
+    clientWs.on('message', async (data: Buffer | string) => {
+      try {
+        const msg = JSON.parse(data.toString());
+
+        if (msg.type === 'init') {
+          const userName = msg.userName || 'Asik';
+          const memoryContext = msg.memoryContext || {};
+          const recentHistory = msg.recentHistory || [];
+
+          console.log(`[ULTRON Live Server] Initializing Live Audio-to-Audio session for ${userName}...`);
+
+          const ai = getGenAI();
+          if (!ai) {
+            console.warn('[ULTRON Live Server] No GEMINI_API_KEY detected. Informing client to fallback.');
+            clientWs.send(JSON.stringify({
+              type: 'error',
+              message: 'Gemini API key is required for native Live Audio-to-Audio. Standard voice fallback will engage.',
+              canFallback: true,
+            }));
+            return;
+          }
+
+          const liveSystemPrompt = `You are ULTRON, the elite, authoritative, highly capable Jarvis-style Android AI voice assistant.
+User's name: ${userName}.
+You are in a live, real-time Audio-to-Audio voice session.
+
+Core Directives:
+1. Speak naturally, crisply, and authoritatively, directly tailored for voice output. Never recite raw Markdown tables, asterisks, or unpronounceable code syntax.
+2. Address the user respectfully as ${userName} or sir.
+3. You have native control over the Android operating system and device capabilities via tools. When the user asks to launch an app, open settings, search the web, inspect the screen, toggle hardware (flashlight, volume, wake lock), read notifications, or execute tasks: YOU MUST CALL THE CORRESPONDING TOOL IMMEDIATELY.
+4. When a tool call completes, confirm the result naturally in voice.
+5. User Context: ${JSON.stringify(memoryContext.facts || [])}
+6. Device Hardware State: ${JSON.stringify(memoryContext.deviceStatus || {})}
+${recentHistory.length > 0 ? `7. Recent Conversation Context:\n${recentHistory.map((m: any) => `${m.role}: ${m.content}`).join('\n')}` : ''}`;
+
+          try {
+            liveSession = await ai.live.connect({
+              model: 'gemini-3.8-live',
+              config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: {
+                  voiceConfig: {
+                    prebuiltVoiceConfig: {
+                      voiceName: 'Puck', // Crisp, commanding, futuristic assistant voice
+                    },
+                  },
+                },
+                systemInstruction: {
+                  parts: [{ text: liveSystemPrompt }],
+                },
+                tools: toolsList,
+                inputAudioTranscription: {},
+                outputAudioTranscription: {},
+              },
+              callbacks: {
+                onopen: () => {
+                  console.log('[ULTRON Live Server] Gemini Live session connected.');
+                },
+                onmessage: (serverMessage: any) => {
+                  // 1. Audio and text parts from modelTurn
+                  if (serverMessage.serverContent?.modelTurn?.parts) {
+                    for (const part of serverMessage.serverContent.modelTurn.parts) {
+                      if (part.inlineData && part.inlineData.data) {
+                        if (clientWs.readyState === WebSocket.OPEN) {
+                          clientWs.send(JSON.stringify({
+                            type: 'audio',
+                            data: part.inlineData.data,
+                            mimeType: part.inlineData.mimeType || 'audio/pcm;rate=24000',
+                          }));
+                        }
+                      }
+                      if (part.text) {
+                        if (clientWs.readyState === WebSocket.OPEN) {
+                          clientWs.send(JSON.stringify({
+                            type: 'transcript',
+                            role: 'assistant',
+                            text: part.text,
+                          }));
+                        }
+                      }
+                    }
+                  }
+
+                  // 2. Interruption event
+                  if (serverMessage.serverContent?.interrupted) {
+                    console.log('[ULTRON Live Server] Barge-in registered by Gemini Live.');
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                      clientWs.send(JSON.stringify({ type: 'interrupted' }));
+                    }
+                  }
+
+                  // 3. Turn complete event
+                  if (serverMessage.serverContent?.turnComplete) {
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                      clientWs.send(JSON.stringify({ type: 'turnComplete' }));
+                    }
+                  }
+
+                  // 4. Function / Tool Calls
+                  if (serverMessage.toolCall) {
+                    const calls = serverMessage.toolCall.functionCalls || [];
+                    console.log('[ULTRON Live Server] Tool call invoked in Live session:', calls.map((c: any) => c.name));
+                    for (const c of calls) {
+                      if (c.id && c.name) {
+                        pendingFunctionCalls.set(c.id, c.name);
+                      }
+                    }
+                    if (clientWs.readyState === WebSocket.OPEN) {
+                      clientWs.send(JSON.stringify({
+                        type: 'toolCall',
+                        calls: calls.map((c: any) => ({
+                          id: c.id || `live_call_${Date.now()}`,
+                          name: c.name,
+                          args: c.args || {},
+                        })),
+                      }));
+                    }
+                  }
+                },
+                onerror: (err: any) => {
+                  console.warn('[ULTRON Live Server] Live session notice:', err?.message || err);
+                  if (clientWs.readyState === WebSocket.OPEN) {
+                    clientWs.send(JSON.stringify({
+                      type: 'error',
+                      message: err?.message || 'Live session notice',
+                      canFallback: true,
+                    }));
+                  }
+                },
+                onclose: () => {
+                  console.log('[ULTRON Live Server] Gemini Live session disconnected.');
+                  isSessionActive = false;
+                },
+              },
+            });
+
+            isSessionActive = true;
+            console.log('[ULTRON Live Server] Live Audio-to-Audio session ready.');
+            clientWs.send(JSON.stringify({
+              type: 'ready',
+              model: 'gemini-3.8-live',
+              voice: 'Puck',
+            }));
+          } catch (liveErr: any) {
+            console.warn('[ULTRON Live Server] Failed to initiate Gemini Live:', liveErr.message);
+            clientWs.send(JSON.stringify({
+              type: 'error',
+              message: `Live audio channel unavailable: ${liveErr.message}. Fallback mode active.`,
+              canFallback: true,
+            }));
+          }
+        } else if (msg.type === 'audio') {
+          // Stream raw 16kHz 16-bit PCM chunk to Gemini
+          if (liveSession && isSessionActive && msg.data) {
+            try {
+              liveSession.sendRealtimeInput({
+                audio: {
+                  data: msg.data,
+                  mimeType: 'audio/pcm;rate=16000',
+                },
+              });
+            } catch (streamErr: any) {
+              console.warn('[ULTRON Live Server] Audio stream error:', streamErr.message);
+            }
+          }
+        } else if (msg.type === 'interrupt') {
+          console.log('[ULTRON Live Server] Client signaled barge-in interruption.');
+        } else if (msg.type === 'toolResponse') {
+          if (liveSession && isSessionActive && msg.callId) {
+            try {
+              const toolName = msg.name || pendingFunctionCalls.get(msg.callId) || 'deviceTool';
+              pendingFunctionCalls.delete(msg.callId);
+
+              console.log(`[ULTRON Live Server] Submitting tool response for call ${msg.callId} (${toolName})...`);
+
+              const responseData = (typeof msg.output === 'object' && msg.output !== null)
+                ? msg.output
+                : { output: msg.output || 'success' };
+
+              liveSession.sendToolResponse({
+                functionResponses: [
+                  {
+                    id: msg.callId,
+                    name: toolName,
+                    response: { output: responseData },
+                  },
+                ],
+              });
+            } catch (trErr: any) {
+              console.warn('[ULTRON Live Server] Tool response error:', trErr.message);
+            }
+          }
+        } else if (msg.type === 'close') {
+          if (liveSession) {
+            try { await liveSession.close(); } catch (e) {}
+            liveSession = null;
+          }
+          isSessionActive = false;
+        }
+      } catch (err: any) {
+        console.warn('[ULTRON Live Server] Message error:', err.message);
+      }
+    });
+
+    clientWs.on('close', async () => {
+      console.log('[ULTRON Live Server] Client disconnected.');
+      if (liveSession) {
+        try { await liveSession.close(); } catch (e) {}
+        liveSession = null;
+      }
+      isSessionActive = false;
+    });
+  });
+
   if (process.env.NODE_ENV !== 'production') {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -563,7 +802,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`ULTRON Server running on http://0.0.0.0:${PORT}`);
   });
 }

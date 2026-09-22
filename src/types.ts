@@ -1,11 +1,31 @@
+export type LiveVoiceState = 
+  | 'IDLE' 
+  | 'LISTENING' 
+  | 'USER_SPEAKING' 
+  | 'PROCESSING' 
+  | 'AI_SPEAKING' 
+  | 'INTERRUPTED' 
+  | 'RECONNECTING' 
+  | 'ERROR' 
+  | 'STOPPED';
+
 export type UltronState = 
   | 'STANDBY' 
   | 'LISTENING' 
+  | 'USER_SPEAKING'
   | 'THINKING' 
+  | 'PROCESSING'
   | 'SEARCHING' 
   | 'EXECUTING' 
   | 'SPEAKING' 
-  | 'ERROR';
+  | 'AI_SPEAKING'
+  | 'INTERRUPTED'
+  | 'RECONNECTING'
+  | 'ERROR'
+  | 'IDLE'
+  | 'STOPPED';
+
+export type VoiceEngineType = 'live_audio' | 'fallback_stt_tts';
 
 export type VoiceMode = 'wake' | 'wakeword' | 'continuous' | 'push_to_talk';
 
@@ -108,6 +128,10 @@ export interface UserPreferences {
   biometricEnrolled: boolean;
   offlineVoiceEnabled: boolean;
   themeHue: 'cyan' | 'arc' | 'amber' | 'crimson';
+  audioToAudioEnabled?: boolean;
+  vadSensitivity?: number; // 1 to 5 (default 3)
+  voiceEngine?: VoiceEngineType;
+  continuousVoiceTimeoutSeconds?: number;
 }
 
 export interface ConfirmationRequest {

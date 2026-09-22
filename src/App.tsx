@@ -8,9 +8,12 @@ import {
   ScreenElement, 
   AutomationWorkflow,
   ToolResult,
-  ToolCall
+  ToolCall,
+  LiveVoiceState,
+  VoiceEngineType
 } from './types';
 import { voiceService } from './services/voiceService';
+import { liveVoiceSession } from './services/liveVoiceSession';
 import { toolRegistry } from './services/toolRegistry';
 import { biometricService } from './services/biometricService';
 import { memoryService } from './services/memoryService';
@@ -35,6 +38,8 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
   const [transcription, setTranscription] = useState<string>('');
   const [assistantSpokenText, setAssistantSpokenText] = useState<string>('');
+  const [liveVoiceState, setLiveVoiceState] = useState<LiveVoiceState>('STOPPED');
+  const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
 
   // Conversation history
   const [messages, setMessages] = useState<Message[]>([
@@ -348,6 +353,70 @@ export default function App() {
   // Voice Service Callbacks Setup (Crucial Pipeline)
   // -------------------------------------------------------------
   useEffect(() => {
+    // 1. Setup Native Live Audio-to-Audio Session Callbacks
+    liveVoiceSession.setCallbacks({
+      onStateChange: (liveState: LiveVoiceState) => {
+        setLiveVoiceState(liveState);
+        setState((prev) => {
+          if (liveState === 'USER_SPEAKING') return 'USER_SPEAKING';
+          if (liveState === 'AI_SPEAKING') return 'AI_SPEAKING';
+          if (liveState === 'INTERRUPTED') return 'INTERRUPTED';
+          if (liveState === 'PROCESSING') return 'PROCESSING';
+          if (liveState === 'RECONNECTING') return 'RECONNECTING';
+          if (liveState === 'LISTENING') return 'LISTENING';
+          if (liveState === 'ERROR') return 'ERROR';
+          if (liveState === 'STOPPED') return 'STANDBY';
+          return prev;
+        });
+
+        setIsListening(liveState !== 'STOPPED' && liveState !== 'ERROR');
+        setIsSpeaking(liveState === 'AI_SPEAKING');
+      },
+      onUserTranscript: (text: string, isFinal: boolean) => {
+        setTranscription(text);
+      },
+      onAssistantTranscript: (text: string) => {
+        setAssistantSpokenText(text);
+      },
+      onToolExecuted: (toolCall: ToolCall, result: ToolResult) => {
+        console.log('[Live Voice Engine] Executed tool in live session:', toolCall.name, result);
+        if (toolCall.name === 'openApp') {
+          const appName = toolCall.args.appName || 'Application';
+          setAppWindowModal({ isOpen: true, appName });
+        } else if (toolCall.name === 'openSettings') {
+          const section = toolCall.args.section || 'General';
+          setAppWindowModal({ isOpen: true, appName: `Settings: ${section}` });
+        } else if (toolCall.name === 'controlDeviceFeature' && toolCall.args.feature === 'torch') {
+          setDeviceStatus((prev) => ({ ...prev, torchOn: !prev.torchOn }));
+        } else if (toolCall.name === 'fileOperation') {
+          setStoredFiles([...toolRegistry.getFiles()]);
+        }
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `live_tool_${Date.now()}`,
+            role: 'assistant',
+            content: `Executed ${toolCall.name}: ${result.message}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            toolCalls: [toolCall],
+            toolResults: [result],
+          },
+        ]);
+      },
+      onError: (errMsg: string, canFallback: boolean) => {
+        console.warn('[Live Voice Engine] Notice:', errMsg);
+        if (canFallback) {
+          console.log('[Live Voice Engine] Seamlessly switching to Standard Voice engine...');
+          handleUpdatePreferences({ voiceEngine: 'fallback_stt_tts' });
+          voiceService.startListening();
+          setIsListening(true);
+          setState('LISTENING');
+        }
+      },
+    });
+
+    // 2. Setup Standard STT/TTS Fallback Engine Callbacks
     voiceService.setCallbacks({
       onInterimResult: (text: string) => {
         setTranscription(text);
@@ -432,18 +501,74 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // Toggle Listening
+  // Toggle Voice Listening (Audio-to-Audio Live Session / Standard STT)
   // -------------------------------------------------------------
-  const handleToggleListening = () => {
+  const handleToggleListening = async () => {
+    const isLive = preferences.voiceEngine !== 'fallback_stt_tts';
+
     if (isListening) {
+      if (isLive) {
+        liveVoiceSession.stopSession();
+      }
       voiceService.stopListening();
+      voiceService.stopSpeaking();
       setIsListening(false);
+      setIsSpeaking(false);
       setState('STANDBY');
     } else {
-      voiceService.startListening();
+      if (isLive) {
+        liveVoiceSession.setSensitivity(preferences.vadSensitivity || 3);
+        const started = await liveVoiceSession.startSession({
+          userName: preferences.userName,
+          memoryContext: {
+            facts: contextFacts,
+            deviceStatus,
+          },
+          recentHistory: messages,
+        });
+        if (!started) {
+          console.warn('[ULTRON Core] Live session could not start. Falling back to Standard Voice.');
+          voiceService.startListening();
+        }
+      } else {
+        voiceService.startListening();
+      }
       setIsListening(true);
-      setState('LISTENING');
     }
+  };
+
+  const handleToggleMute = () => {
+    const muted = liveVoiceSession.toggleMute();
+    setIsMicMuted(muted);
+  };
+
+  const handleToggleEngine = () => {
+    const nextEngine: VoiceEngineType = preferences.voiceEngine === 'fallback_stt_tts' ? 'live_audio' : 'fallback_stt_tts';
+    handleUpdatePreferences({ voiceEngine: nextEngine, audioToAudioEnabled: nextEngine === 'live_audio' });
+
+    if (isListening) {
+      if (nextEngine === 'live_audio') {
+        voiceService.stopListening();
+        voiceService.stopSpeaking();
+        liveVoiceSession.startSession({
+          userName: preferences.userName,
+          memoryContext: { facts: contextFacts, deviceStatus },
+          recentHistory: messages,
+        });
+      } else {
+        liveVoiceSession.stopSession();
+        voiceService.startListening();
+      }
+    }
+  };
+
+  const handleInterruptAi = () => {
+    if (preferences.voiceEngine !== 'fallback_stt_tts') {
+      liveVoiceSession.interrupt();
+    }
+    voiceService.stopSpeaking();
+    setIsSpeaking(false);
+    setState('LISTENING');
   };
 
   // -------------------------------------------------------------
@@ -518,8 +643,14 @@ export default function App() {
             assistantResponseText={assistantSpokenText}
             wakeWord={preferences.wakeWord}
             voiceMode={preferences.voiceMode}
+            voiceEngine={preferences.voiceEngine || 'live_audio'}
+            liveVoiceState={liveVoiceState}
+            isMuted={isMicMuted}
             onToggleListening={handleToggleListening}
             onStopSpeaking={() => voiceService.stopSpeaking()}
+            onToggleMute={handleToggleMute}
+            onToggleEngine={handleToggleEngine}
+            onInterruptAi={handleInterruptAi}
             onSubmitCommand={(cmd, isVoice) => handleExecuteCommand(cmd, isVoice)}
           />
         )}

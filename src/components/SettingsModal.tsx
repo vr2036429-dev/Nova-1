@@ -116,6 +116,66 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="space-y-4">
               <div>
                 <label className="text-slate-300 font-semibold block mb-1">
+                  Primary Voice Engine
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div
+                    onClick={() => onUpdatePreferences({ voiceEngine: 'live_audio', audioToAudioEnabled: true })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      preferences.voiceEngine !== 'fallback_stt_tts'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                        : 'bg-[#060a14] border-slate-800 text-slate-400 hover:border-cyan-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-slate-200">Live Audio-to-Audio</span>
+                      {preferences.voiceEngine !== 'fallback_stt_tts' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[11px] opacity-75">Gemini Live native bidirectional 24kHz audio with instant barge-in</p>
+                  </div>
+
+                  <div
+                    onClick={() => onUpdatePreferences({ voiceEngine: 'fallback_stt_tts', audioToAudioEnabled: false })}
+                    className={`p-3 rounded-xl border cursor-pointer transition-all ${
+                      preferences.voiceEngine === 'fallback_stt_tts'
+                        ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200'
+                        : 'bg-[#060a14] border-slate-800 text-slate-400 hover:border-cyan-500/30'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-slate-200">Standard Voice</span>
+                      {preferences.voiceEngine === 'fallback_stt_tts' && <Check className="w-3.5 h-3.5 text-cyan-400" />}
+                    </div>
+                    <p className="text-[11px] opacity-75">Browser Web Speech API (STT → Pipeline → TTS)</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-300 font-semibold">
+                    Voice Activity Detection (VAD) Sensitivity ({preferences.vadSensitivity || 3}/5)
+                  </label>
+                  <span className="text-[11px] text-cyan-400">
+                    {preferences.vadSensitivity === 5 ? 'Ultra-High' : preferences.vadSensitivity === 1 ? 'Low' : 'Balanced'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="1"
+                  max="5"
+                  step="1"
+                  value={preferences.vadSensitivity || 3}
+                  onChange={(e) => onUpdatePreferences({ vadSensitivity: parseInt(e.target.value, 10) })}
+                  className="w-full accent-cyan-400"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Controls threshold for triggering speech start and real-time interruption (barge-in) when ULTRON is speaking.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-slate-300 font-semibold block mb-1">
                   Interaction Voice Mode
                 </label>
                 <div className="grid grid-cols-2 gap-2">

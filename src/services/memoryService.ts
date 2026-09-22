@@ -13,6 +13,9 @@ export class MemoryService {
     biometricEnrolled: true,
     offlineVoiceEnabled: true,
     themeHue: 'cyan',
+    voiceEngine: 'fallback_stt_tts',
+    audioToAudioEnabled: false,
+    vadSensitivity: 3,
   };
 
   private contextualFacts: string[] = [
