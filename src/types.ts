@@ -471,3 +471,83 @@ export interface ProjectStructure {
   }>;
 }
 
+// -------------------------------------------------------------
+// ULTRON Autonomous Command-to-Completion System Types
+// -------------------------------------------------------------
+export type AutonomousTaskState = 
+  | 'IDLE' 
+  | 'UNDERSTANDING' 
+  | 'PLANNING' 
+  | 'WAITING_FOR_PERMISSION' 
+  | 'EXECUTING' 
+  | 'VERIFYING' 
+  | 'RECOVERING' 
+  | 'PAUSED' 
+  | 'COMPLETED' 
+  | 'FAILED' 
+  | 'CANCELLED';
+
+export type ToolRiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export interface AutonomousTaskStage {
+  id: string;
+  title: string;
+  description: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped' | 'recovering';
+  toolCategory: 
+    | 'ai_reasoning' 
+    | 'voice' 
+    | 'audio' 
+    | 'android_control' 
+    | 'accessibility' 
+    | 'screen_understanding' 
+    | 'camera' 
+    | 'files' 
+    | 'web_research' 
+    | 'coding' 
+    | 'project_generation' 
+    | 'build' 
+    | 'testing' 
+    | 'git' 
+    | 'api' 
+    | 'database' 
+    | 'notification' 
+    | 'automation';
+  toolName: string;
+  args: Record<string, any>;
+  riskLevel: ToolRiskLevel;
+  resultMessage?: string;
+  error?: string;
+  retryCount: number;
+  maxRetries: number;
+}
+
+export interface AutonomousExecutionJob {
+  id: string;
+  command: string;
+  intent: string;
+  state: AutonomousTaskState;
+  stages: AutonomousTaskStage[];
+  currentStageIndex: number;
+  progressPercent: number;
+  startTime: string;
+  completionTime?: string;
+  summary: string;
+  completedDeliverables: string[];
+  genuineBlockers: string[];
+  autoPilotMode: boolean; // "Khud kar lo" / "Tum handle karo" flag
+}
+
+export interface SystemHealthSnapshot {
+  aiConnection: boolean;
+  network: boolean;
+  microphone: boolean;
+  audioOutput: boolean;
+  accessibility: boolean;
+  storage: boolean;
+  batteryOptimized: boolean;
+  buildEnvironment: boolean;
+  issues: string[];
+}
+
+

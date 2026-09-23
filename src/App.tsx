@@ -29,6 +29,7 @@ import { MultimodalView } from './components/MultimodalView';
 import { ResearchAgentView } from './components/ResearchAgentView';
 import { DiagnosticsView } from './components/DiagnosticsView';
 import { CoderWorkspaceView } from './components/CoderWorkspaceView';
+import { ultronAutonomousEngine } from './services/ultronAutonomousEngine';
 import { taskContinuityEngine } from './services/taskContinuityEngine';
 import { diagnosticEngine } from './services/diagnosticEngine';
 import { voicePipelineDiagnostics } from './services/voicePipelineDiagnostics';
@@ -213,6 +214,59 @@ export default function App() {
       setAssistantSpokenText(text);
       setState('SPEAKING');
       voiceService.speak(text);
+      return;
+    }
+
+    // Direct Directive: Emergency Stop / Human Oversight (Section 19)
+    if (lowerCmd.includes('stop ultron') || lowerCmd === 'stop' || lowerCmd === 'cancel task' || lowerCmd === 'ruk jao') {
+      ultronAutonomousEngine.emergencyStop();
+      const text = 'Emergency stop acknowledged, ASIK. Halting all autonomous operations immediately.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `stop_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      setState('SPEAKING');
+      voiceService.speak(text);
+      return;
+    }
+
+    // Direct Directive: Single-Command Autonomous Execution Mode (Section 1, 2, 16)
+    if (
+      lowerCmd.includes('ek professional android app') ||
+      lowerCmd.includes('modern portfolio website') ||
+      lowerCmd.includes('is topic par research') ||
+      lowerCmd.includes('khud kar lo') ||
+      lowerCmd.includes('tum handle karo') ||
+      lowerCmd.includes('pura kaam tum karo') ||
+      lowerCmd.includes('end tak complete karo') ||
+      lowerCmd.includes('mat puchhna') ||
+      lowerCmd.includes('organize these files') ||
+      lowerCmd.includes('mere project files organize') ||
+      lowerCmd.includes('automate this task') ||
+      lowerCmd.includes('prepare the apk')
+    ) {
+      setActiveTab('tasks');
+      const plannedJob = ultronAutonomousEngine.planCommand(commandText);
+      const text = `Autonomous execution engaged. Decomposed your goal into ${plannedJob.stages.length} sequential stages. Executing from start to finish without micromanagement.`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `auto_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      setState('SPEAKING');
+      voiceService.speak(text);
+      ultronAutonomousEngine.executeJob().catch((e) => console.error('Autonomous job failed:', e));
       return;
     }
 

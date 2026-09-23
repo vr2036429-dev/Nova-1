@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ActiveTask, TaskPlanStep, ActionHistoryRecord } from '../types';
 import { taskContinuityEngine } from '../services/taskContinuityEngine';
+import { AutonomousExecutionPanel } from './AutonomousExecutionPanel';
 
 interface TaskContinuityViewProps {
   onExecuteTool?: (toolName: string, args: Record<string, any>) => Promise<any>;
@@ -160,6 +161,9 @@ export const TaskContinuityView: React.FC<TaskContinuityViewProps> = ({ onExecut
           </div>
         )}
       </div>
+
+      {/* Autonomous Command-to-Completion Engine (Section 1) */}
+      <AutonomousExecutionPanel />
 
       {/* Autonomous Goal Planner Input */}
       <div className="bg-slate-900/60 border border-cyan-900/40 rounded-xl p-4 backdrop-blur-sm">
