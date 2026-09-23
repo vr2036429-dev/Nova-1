@@ -28,6 +28,7 @@ import { TaskContinuityView } from './components/TaskContinuityView';
 import { MultimodalView } from './components/MultimodalView';
 import { ResearchAgentView } from './components/ResearchAgentView';
 import { DiagnosticsView } from './components/DiagnosticsView';
+import { CoderWorkspaceView } from './components/CoderWorkspaceView';
 import { taskContinuityEngine } from './services/taskContinuityEngine';
 import { diagnosticEngine } from './services/diagnosticEngine';
 import { voicePipelineDiagnostics } from './services/voicePipelineDiagnostics';
@@ -204,6 +205,34 @@ export default function App() {
         ...prev,
         {
           id: `diag_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      setState('SPEAKING');
+      voiceService.speak(text);
+      return;
+    }
+
+    // Direct Voice Directive: ULTRON Coder & Developer Mode
+    if (
+      lowerCmd.includes('open coder') || 
+      lowerCmd.includes('developer mode') || 
+      lowerCmd.includes('open dev mode') || 
+      lowerCmd.includes('code workspace') ||
+      lowerCmd.includes('build me an android') ||
+      lowerCmd.includes('create an android') ||
+      lowerCmd.includes('create a website') ||
+      lowerCmd.includes('debug my code')
+    ) {
+      setActiveTab('coder');
+      const text = `ULTRON Coder and Autonomous Developer Workspace engaged, ASIK. Initializing software architecture, project indexing, and compiler pipelines.`;
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `code_${Date.now()}`,
           role: 'assistant',
           content: text,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -818,6 +847,10 @@ export default function App() {
 
         {activeTab === 'research' && (
           <ResearchAgentView />
+        )}
+
+        {activeTab === 'coder' && (
+          <CoderWorkspaceView onExecuteCommand={(cmd) => handleExecuteCommand(cmd, false)} />
         )}
 
         {activeTab === 'diagnostics' && (

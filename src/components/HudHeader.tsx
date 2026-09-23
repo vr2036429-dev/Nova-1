@@ -17,7 +17,8 @@ import {
   Compass,
   Eye,
   Globe,
-  Activity
+  Activity,
+  Code
 } from 'lucide-react';
 import { UltronState, ViewTab, DeviceStatus } from '../types';
 
@@ -196,6 +197,19 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
           >
             <Wrench className="w-3.5 h-3.5" />
             <span className="hidden xl:inline">Tools</span>
+          </button>
+
+          <button
+            onClick={() => onTabChange('coder')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'coder'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="ULTRON Coder & Developer Mode"
+          >
+            <Code className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">Coder</span>
           </button>
 
           <button

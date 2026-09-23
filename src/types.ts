@@ -38,6 +38,7 @@ export type ViewTab =
   | 'research' 
   | 'automation' 
   | 'tools' 
+  | 'coder'
   | 'diagnostics' 
   | 'settings';
 
@@ -355,3 +356,118 @@ export interface ConfirmationRequest {
   onConfirm: () => void;
   onCancel: () => void;
 }
+
+// -------------------------------------------------------------
+// ULTRON CODER & Autonomous Software Engineering System Types
+// -------------------------------------------------------------
+export type CodeLanguage = 
+  | 'kotlin' 
+  | 'java' 
+  | 'python' 
+  | 'javascript' 
+  | 'typescript' 
+  | 'html' 
+  | 'css' 
+  | 'sql' 
+  | 'json' 
+  | 'xml' 
+  | 'bash' 
+  | 'powershell' 
+  | 'cpp' 
+  | 'rust' 
+  | 'go' 
+  | 'swift' 
+  | 'dart';
+
+export type ProjectFramework = 
+  | 'android_compose' 
+  | 'react_vite' 
+  | 'nextjs' 
+  | 'flutter' 
+  | 'node_express' 
+  | 'python_fastapi' 
+  | 'automation_script';
+
+export interface ProjectFile {
+  path: string;
+  name: string;
+  content: string;
+  language: CodeLanguage;
+  isModified?: boolean;
+  readOnly?: boolean;
+}
+
+export type FeatureStatusType = 
+  | 'IMPLEMENTED' 
+  | 'PARTIALLY_IMPLEMENTED' 
+  | 'PLANNED' 
+  | 'BLOCKED_BY_PLATFORM' 
+  | 'REQUIRES_USER_PERMISSION' 
+  | 'REQUIRES_EXTERNAL_SERVICE';
+
+export interface ProjectFeature {
+  id: string;
+  name: string;
+  description: string;
+  status: FeatureStatusType;
+  notes?: string;
+}
+
+export interface QualityGateStatus {
+  build: boolean;
+  tests: boolean;
+  errors: boolean;
+  security: boolean;
+  performance: boolean;
+  ui: boolean;
+  documentation: boolean;
+  configuration: boolean;
+  dependencies: boolean;
+  knownLimitations: string[];
+}
+
+export interface DebugDiagnosticItem {
+  id: string;
+  type: 'compile' | 'runtime' | 'ui' | 'network' | 'gradle' | 'dependency' | 'audio' | 'memory' | 'permission';
+  severity: 'info' | 'warn' | 'error';
+  file?: string;
+  line?: number;
+  message: string;
+  suggestedFix?: string;
+  verified?: boolean;
+  applied?: boolean;
+}
+
+export interface CodeReviewFinding {
+  id: string;
+  category: 'bug' | 'security' | 'performance' | 'architecture' | 'duplication' | 'accessibility';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  file?: string;
+  line?: number;
+  message: string;
+  recommendation: string;
+  suggestedPatch?: string;
+}
+
+export interface ProjectStructure {
+  id: string;
+  name: string;
+  type: ProjectFramework;
+  description: string;
+  files: ProjectFile[];
+  currentFilePath: string;
+  createdAt: string;
+  lastBuilt?: string;
+  buildStatus?: 'idle' | 'building' | 'passed' | 'failed';
+  testStatus?: 'idle' | 'running' | 'passed' | 'failed';
+  features: ProjectFeature[];
+  qualityGate: QualityGateStatus;
+  gitBranch: string;
+  commitHistory: Array<{
+    hash: string;
+    message: string;
+    timestamp: string;
+    author: string;
+  }>;
+}
+
