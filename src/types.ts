@@ -106,6 +106,40 @@ export interface StoredNotification {
 }
 
 // -------------------------------------------------------------
+// Multimodal & Vision Perception Types
+// -------------------------------------------------------------
+export type CameraFacing = 'user' | 'environment';
+
+export interface CapturedPhoto {
+  id: string;
+  dataUrl: string;
+  timestamp: string;
+  facingMode: CameraFacing;
+  category: 'photo' | 'skin_analysis' | 'surroundings';
+  caption?: string;
+}
+
+export interface SkinAnalysisResult {
+  overallStatus: string;
+  hydrationScore: number;
+  fatigueScore: number;
+  skinClarity: string;
+  recommendations: string[];
+  wittyCommentary: string;
+  rawAnalysis: string;
+}
+
+export interface SurroundingsAnalysisResult {
+  facingMode: CameraFacing;
+  detectedObjects: string[];
+  lightingCondition: string;
+  spatialSummary: string;
+  actionableObservations: string[];
+  proactiveAdvice: string;
+  rawAnalysis: string;
+}
+
+// -------------------------------------------------------------
 // Task Continuity & Autonomous Planning Types
 // -------------------------------------------------------------
 export type TaskExecutionStatus = 

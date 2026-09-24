@@ -12,7 +12,11 @@ import {
   Check, 
   Sliders, 
   Sparkles,
-  Lock
+  Lock,
+  Key,
+  Eye,
+  EyeOff,
+  ExternalLink
 } from 'lucide-react';
 import { UserPreferences, VoiceMode } from '../types';
 import { voiceService } from '../services/voiceService';
@@ -36,11 +40,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onUpdatePreferences,
   onClearMemory,
 }) => {
-  const [activeTab, setActiveTab] = useState<'voice' | 'security' | 'memory' | 'general'>('voice');
+  const [activeTab, setActiveTab] = useState<'voice' | 'security' | 'memory' | 'api_key'>('voice');
   const [enrollingBio, setEnrollingBio] = useState(false);
   const [enrollStatus, setEnrollStatus] = useState<string | null>(null);
 
+  // Gemini API Key state management in local device storage
+  const [apiKeyInput, setApiKeyInput] = useState(() => {
+    return localStorage.getItem('ultron_gemini_api_key') || '';
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [keySaveMessage, setKeySaveMessage] = useState<string | null>(null);
+
   if (!isOpen) return null;
+
+  const handleSaveApiKey = () => {
+    const cleanKey = apiKeyInput.trim();
+    if (cleanKey) {
+      localStorage.setItem('ultron_gemini_api_key', cleanKey);
+      setKeySaveMessage('Gemini API Key successfully saved to device storage.');
+    } else {
+      localStorage.removeItem('ultron_gemini_api_key');
+      setKeySaveMessage('API Key removed. System will use default environment configuration.');
+    }
+    setTimeout(() => setKeySaveMessage(null), 3000);
+  };
 
   const handleEnrollBiometrics = async () => {
     setEnrollingBio(true);
@@ -108,6 +131,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           >
             <Database className="w-3.5 h-3.5" />
             <span>Context Memory</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('api_key')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition-all ${
+              activeTab === 'api_key'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Key className="w-3.5 h-3.5" />
+            <span>Gemini API Key</span>
           </button>
         </div>
 
@@ -397,6 +432,104 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     <span>{fact}</span>
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: GEMINI API KEY */}
+          {activeTab === 'api_key' && (
+            <div className="space-y-4">
+              <div className="p-4 bg-[#060a14] border border-cyan-500/30 rounded-2xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-200">
+                    <Key className="w-4 h-4 text-cyan-400" />
+                    <span className="font-semibold">Gemini Multi-Modal API Key</span>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                    apiKeyInput.trim()
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {apiKeyInput.trim() ? 'KEY SAVED' : 'NOT CONFIGURED'}
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Apni personal Google Gemini API key yahan enter karein. Yeh key aapke device ke secure localStorage mein save hoti hai aur kisi external server par store nahi hoti.
+                </p>
+
+                {/* Input container */}
+                <div className="space-y-1.5">
+                  <label className="text-slate-300 text-xs font-semibold block">
+                    API Key (AIzaSy...)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKeyInput}
+                      onChange={(e) => setApiKeyInput(e.target.value)}
+                      placeholder="Paste your Gemini API Key here"
+                      className="w-full bg-[#0d1629] border border-slate-700 focus:border-cyan-400 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 pr-10 font-mono-code focus:outline-none transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {keySaveMessage && (
+                  <div className="p-2.5 rounded-xl bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 text-xs flex items-center gap-2 animate-in fade-in">
+                    <Check className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    <span>{keySaveMessage}</span>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSaveApiKey}
+                    className="flex-1 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs font-mono-code transition-all shadow-[0_0_15px_rgba(6,182,212,0.3)]"
+                  >
+                    Save Key to Device
+                  </button>
+                  {apiKeyInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setApiKeyInput('');
+                        localStorage.removeItem('ultron_gemini_api_key');
+                        setKeySaveMessage('API Key successfully removed.');
+                        setTimeout(() => setKeySaveMessage(null), 3000);
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-red-500/40 bg-red-950/30 text-red-300 hover:bg-red-900/40 text-xs font-mono-code transition-all"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Helpful tips box */}
+              <div className="p-3 bg-[#060a14]/60 border border-slate-800 rounded-xl space-y-2 text-slate-400 text-[11px]">
+                <div className="flex items-center justify-between text-slate-300 font-semibold">
+                  <span>Free Gemini API Key kaise lein:</span>
+                  <a
+                    href="https://aistudio.google.com/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-cyan-400 hover:underline flex items-center gap-1"
+                  >
+                    <span>Google AI Studio</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+                <p>1. Google AI Studio (aistudio.google.com) par Google account se login karein.</p>
+                <p>2. "Get API key" par click karein aur free key generate karein.</p>
+                <p>3. Yahan paste karke "Save Key" dabayein. Done!</p>
               </div>
             </div>
           )}

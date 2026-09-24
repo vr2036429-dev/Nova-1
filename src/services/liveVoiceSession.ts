@@ -510,10 +510,12 @@ export class LiveVoiceSession {
           this.reconnectAttempts = 0;
           console.log('[LiveVoiceSession] WebSocket connected. Initializing Live session...');
 
-          // Send initialization payload with context
+          // Send initialization payload with context and optional user custom key
+          const customApiKey = localStorage.getItem('ultron_gemini_api_key') || undefined;
           this.socket?.send(
             JSON.stringify({
               type: 'init',
+              apiKey: customApiKey,
               userName: options.userName,
               memoryContext: options.memoryContext || {},
               recentHistory: (options.recentHistory || []).slice(-6),

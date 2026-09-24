@@ -16,9 +16,9 @@ const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
-// Initialize GoogleGenAI client lazily or when key is present
-const getGenAI = () => {
-  const apiKey = process.env.GEMINI_API_KEY;
+// Initialize GoogleGenAI client lazily or when key is present (env or custom key)
+const getGenAI = (customKey?: string) => {
+  const apiKey = customKey || process.env.GEMINI_API_KEY;
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
     return null;
   }
@@ -939,7 +939,7 @@ async function startServer() {
 
           console.log(`[ULTRON Live Server] Initializing Live Audio-to-Audio session for ${userName}...`);
 
-          const ai = getGenAI();
+          const ai = getGenAI(msg.apiKey);
           if (!ai) {
             console.warn('[ULTRON Live Server] No GEMINI_API_KEY detected. Informing client to fallback.');
             clientWs.send(JSON.stringify({

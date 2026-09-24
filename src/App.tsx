@@ -44,6 +44,33 @@ import { ultronVoiceAuth } from './services/ultronVoiceAuthService';
 import { ultronOwnerIdentityEngine } from './services/ultronOwnerIdentityEngine';
 import { ultronTrustSession } from './services/ultronTrustSession';
 
+const CYCLABLE_TABS: ViewTab[] = [
+  'orb_hud',
+  'chat',
+  'tasks',
+  'multimodal',
+  'research',
+  'automation',
+  'tools',
+  'coder',
+  'diagnostics',
+  'security',
+];
+
+const TAB_DISPLAY_NAMES: Record<ViewTab, string> = {
+  orb_hud: 'Voice Orb HUD',
+  chat: 'Conversation Stream',
+  tasks: 'Task Continuity & Planner',
+  multimodal: 'Vision & Screen Intelligence',
+  research: 'Deep Web Research Agent',
+  automation: 'Automations & Workflows',
+  tools: 'Tools & Android Apps',
+  coder: 'ULTRON Coder & IDE',
+  diagnostics: 'Diagnostics & Telemetry',
+  security: 'Owner Security Center',
+  settings: 'System Settings',
+};
+
 export default function App() {
   // Core state machine
   const [state, setState] = useState<UltronState>('STANDBY');
@@ -129,6 +156,106 @@ export default function App() {
   preferencesRef.current = preferences;
   const stateRef = useRef(state);
   stateRef.current = state;
+
+  // -------------------------------------------------------------
+  // Touch Gesture Navigation (Swiping Left/Right on Main View)
+  // -------------------------------------------------------------
+  const touchStartXRef = useRef<number | null>(null);
+  const touchStartYRef = useRef<number | null>(null);
+  const touchStartTimeRef = useRef<number>(0);
+  const [swipeHint, setSwipeHint] = useState<{ direction: 'left' | 'right'; targetTabName: string } | null>(null);
+  const swipeHintTimeoutRef = useRef<any>(null);
+
+  const cycleTab = useCallback((direction: 'next' | 'prev') => {
+    setActiveTab((currentTab) => {
+      const currentIndex = CYCLABLE_TABS.indexOf(currentTab);
+      if (currentIndex === -1) return CYCLABLE_TABS[0];
+
+      const newIndex = direction === 'next'
+        ? (currentIndex + 1) % CYCLABLE_TABS.length
+        : (currentIndex - 1 + CYCLABLE_TABS.length) % CYCLABLE_TABS.length;
+
+      const nextTab = CYCLABLE_TABS[newIndex];
+
+      // Subtle tactile vibration on supported mobile devices
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try {
+          navigator.vibrate(12);
+        } catch (e) {}
+      }
+
+      if (swipeHintTimeoutRef.current) clearTimeout(swipeHintTimeoutRef.current);
+      setSwipeHint({
+        direction: direction === 'next' ? 'left' : 'right',
+        targetTabName: TAB_DISPLAY_NAMES[nextTab] || nextTab,
+      });
+
+      swipeHintTimeoutRef.current = setTimeout(() => {
+        setSwipeHint(null);
+      }, 1000);
+
+      return nextTab;
+    });
+  }, []);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    // Only track single-finger touch gestures
+    if (e.touches.length !== 1) return;
+
+    // Do not trigger swipe navigation when interacting with inputs, sliders, or code blocks
+    const target = e.target as HTMLElement;
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.closest('input') ||
+      target.closest('textarea') ||
+      target.closest('select') ||
+      target.closest('pre') ||
+      target.closest('code') ||
+      target.closest('.no-swipe')
+    ) {
+      touchStartXRef.current = null;
+      touchStartYRef.current = null;
+      return;
+    }
+
+    touchStartXRef.current = e.touches[0].clientX;
+    touchStartYRef.current = e.touches[0].clientY;
+    touchStartTimeRef.current = Date.now();
+  }, []);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (touchStartXRef.current === null || touchStartYRef.current === null) return;
+    if (e.changedTouches.length !== 1) return;
+
+    const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    const duration = Date.now() - touchStartTimeRef.current;
+
+    touchStartXRef.current = null;
+    touchStartYRef.current = null;
+
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+
+    // Require min distance 45px, max duration 650ms, and clear horizontal dominance (absX > absY * 1.25)
+    if (absX > 45 && duration < 650 && absX > absY * 1.25) {
+      if (deltaX < 0) {
+        // Swiped right-to-left: cycle forward
+        cycleTab('next');
+      } else {
+        // Swiped left-to-right: cycle backward
+        cycleTab('prev');
+      }
+    }
+  }, [cycleTab]);
+
+  useEffect(() => {
+    return () => {
+      if (swipeHintTimeoutRef.current) clearTimeout(swipeHintTimeoutRef.current);
+    };
+  }, []);
 
   // -------------------------------------------------------------
   // Initial Hardware & Device Telemetry Sync
@@ -897,8 +1024,23 @@ export default function App() {
         onOpenVoiceLock={() => setVoiceLockModalOpen(true)}
       />
 
-      {/* Main Content Area based on Tab */}
-      <main className="flex-1 flex flex-col overflow-hidden relative z-10">
+      {/* Main Content Area based on Tab with Touch Gesture Support */}
+      <main 
+        className="flex-1 flex flex-col overflow-hidden relative z-10 touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Futuristic HUD Swipe Hint Indicator */}
+        {swipeHint && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all duration-300 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-950/90 border border-cyan-500/50 text-cyan-300 text-xs font-mono-code shadow-[0_0_18px_rgba(6,182,212,0.35)] backdrop-blur-md">
+              <span className="text-cyan-400 font-bold">{swipeHint.direction === 'left' ? '←' : '→'}</span>
+              <span className="font-semibold tracking-wider uppercase text-[11px]">{swipeHint.targetTabName}</span>
+              <span className="text-cyan-400 font-bold">{swipeHint.direction === 'left' ? '←' : '→'}</span>
+            </div>
+          </div>
+        )}
+
         {activeTab === 'orb_hud' && (
           <VoiceHudView
             state={state}
