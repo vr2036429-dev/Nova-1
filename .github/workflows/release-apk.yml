@@ -171,7 +171,15 @@ with open(path, "w") as f:
           echo "apk_file=$FINAL_NAME" >> $GITHUB_OUTPUT
           echo "Generated signed APK: $FINAL_NAME"
 
-      # 14. Automatically Tag & Publish Release on GitHub
+      # 14. Upload APK as workflow artifact (Direct download from Actions run)
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ULTRON-APK
+          path: ${{ steps.apk_step.outputs.apk_file }}
+          retention-days: 14
+
+      # 15. Automatically Tag & Publish Release on GitHub
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
