@@ -11,11 +11,13 @@ import {
   Radio, 
   Check, 
   Sliders, 
-  Sparkles 
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import { UserPreferences, VoiceMode } from '../types';
 import { voiceService } from '../services/voiceService';
 import { biometricService } from '../services/biometricService';
+import { ultronVoiceAuth } from '../services/ultronVoiceAuthService';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -270,6 +272,46 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 2: SECURITY */}
           {activeTab === 'security' && (
             <div className="space-y-4">
+              {/* Owner Voice Lock Section */}
+              <div className="p-3.5 bg-[#060a14] border border-cyan-500/20 rounded-2xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-slate-200">
+                    <Lock className="w-4 h-4 text-cyan-400" />
+                    <span className="font-semibold">Owner Voice Lock (ASIK Only)</span>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                    ultronVoiceAuth.isVoiceLockEnabled()
+                      ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                  }`}>
+                    {ultronVoiceAuth.isVoiceLockEnabled() ? 'ACTIVE' : 'INACTIVE'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Strict acoustic vector verification. Automatically rejects unknown voices, synthetic audio clones, and background conversations.
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      ultronVoiceAuth.updateSettings({ isVoiceLockEnabled: !ultronVoiceAuth.isVoiceLockEnabled() });
+                    }}
+                    className="flex-1 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 text-xs transition"
+                  >
+                    {ultronVoiceAuth.isVoiceLockEnabled() ? 'Disable Lock' : 'Enable Voice Lock'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      ultronVoiceAuth.resetEnrollment();
+                    }}
+                    className="flex-1 py-1.5 rounded-lg border border-cyan-500/30 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 text-xs transition"
+                  >
+                    Re-Enroll Voiceprint
+                  </button>
+                </div>
+              </div>
+
               <div className="p-3.5 bg-[#060a14] border border-slate-800 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-slate-200">

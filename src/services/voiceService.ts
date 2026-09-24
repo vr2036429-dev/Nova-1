@@ -5,6 +5,7 @@ export class VoiceService {
   private isListening: boolean = false;
   private isSpeaking: boolean = false;
   private shouldStayListening: boolean = false;
+  private permissionDenied: boolean = false;
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private mediaStream: MediaStream | null = null;
@@ -137,11 +138,20 @@ export class VoiceService {
     return new Uint8Array(64).fill(0);
   }
 
-  public startListening(wakeWord: string = 'ULTRON') {
+  public startListening(wakeWord: string = 'ULTRON', isUserGesture: boolean = false) {
     if (!this.isSpeechSupported()) {
       voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'error', 'Speech recognition is not supported in this browser environment.');
       this.onError?.('Speech recognition is not supported in this browser. You can type commands directly.');
       return;
+    }
+
+    if (this.permissionDenied && !isUserGesture) {
+      console.warn('[ULTRON VoiceEngine] Microphone permission previously denied. Awaiting explicit user gesture.');
+      return;
+    }
+
+    if (isUserGesture) {
+      this.permissionDenied = false;
     }
 
     if (this.isSpeaking) {
@@ -170,6 +180,7 @@ export class VoiceService {
 
       this.recognition.onstart = () => {
         this.isListening = true;
+        this.permissionDenied = false;
         voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'success', 'Microphone permission granted.');
         voicePipelineDiagnostics.updateStage('AUDIO_INPUT', 'success', 'Hardware microphone stream active (Full Duplex).');
         voicePipelineDiagnostics.updateStage('AUDIO_CAPTURE', 'success', '16kHz SpeechRecognition buffer capture online.');
@@ -250,10 +261,17 @@ export class VoiceService {
           // Normal silence, keep listening
           return;
         }
-        if (event.error === 'not-allowed') {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'error', 'Microphone access denied by browser or system settings.');
-          this.onError?.('Microphone access was denied. Please allow microphone permissions.');
+          this.onError?.('Microphone access was denied. Please allow microphone permissions in your browser or device settings.');
           this.isListening = false;
+          this.shouldStayListening = false;
+          this.permissionDenied = true;
+          this.onStateChange?.('ERROR');
+        } else if (event.error === 'audio-capture') {
+          voicePipelineDiagnostics.updateStage('AUDIO_INPUT', 'error', 'No microphone hardware detected or audio capture failed.');
+          this.isListening = false;
+          this.shouldStayListening = false;
           this.onStateChange?.('ERROR');
         } else {
           voicePipelineDiagnostics.updateStage('AUDIO_CAPTURE', 'warning', `Capture event notice: ${event.error}`);
@@ -262,12 +280,13 @@ export class VoiceService {
 
       this.recognition.onend = () => {
         this.isListening = false;
-        // Auto-restart if we should stay listening and not currently speaking AI response
-        if (this.shouldStayListening && !this.isSpeaking) {
+        // Auto-restart ONLY if shouldStayListening is active and permission is not denied
+        if (this.shouldStayListening && !this.permissionDenied && !this.isSpeaking) {
           try {
             this.recognition.start();
             this.isListening = true;
           } catch (e) {
+            this.shouldStayListening = false;
             this.onStateChange?.('STANDBY');
           }
         } else {

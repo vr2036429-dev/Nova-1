@@ -18,7 +18,8 @@ import {
   Eye,
   Globe,
   Activity,
-  Code
+  Code,
+  Lock
 } from 'lucide-react';
 import { UltronState, ViewTab, DeviceStatus } from '../types';
 
@@ -31,6 +32,7 @@ interface HudHeaderProps {
   biometricEnrolled: boolean;
   onToggleTorch?: () => void;
   onToggleMic?: () => void;
+  onOpenVoiceLock?: () => void;
 }
 
 export const HudHeader: React.FC<HudHeaderProps> = ({
@@ -42,6 +44,7 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
   biometricEnrolled,
   onToggleTorch,
   onToggleMic,
+  onOpenVoiceLock,
 }) => {
   const getStateBadge = () => {
     switch (state) {
@@ -226,6 +229,19 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
           </button>
 
           <button
+            onClick={() => onTabChange('security')}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
+              activeTab === 'security'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_12px_rgba(6,182,212,0.2)]'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Owner Voice Security Center & Biometric Identity"
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden xl:inline">Security</span>
+          </button>
+
+          <button
             onClick={() => onTabChange('settings')}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 ${
               activeTab === 'settings'
@@ -274,6 +290,16 @@ export const HudHeader: React.FC<HudHeaderProps> = ({
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
             <span className="hidden lg:inline">BIO-LOCK</span>
           </div>
+
+          {/* Owner Voice Lock Status */}
+          <button
+            onClick={onOpenVoiceLock}
+            className="flex items-center gap-1 px-2 py-1 bg-cyan-950/50 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 rounded-lg text-[11px] transition-colors"
+            title="Owner Voice Lock & Biometric Speaker Authentication"
+          >
+            <Lock className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">VOICE-LOCK</span>
+          </button>
 
           {/* Battery Status */}
           <div className="flex items-center gap-1 px-2 py-1 bg-slate-900/60 border border-slate-800 rounded-lg text-slate-300 text-[11px]">

@@ -1,4 +1,5 @@
 import { UserPreferences } from '../types';
+import { ultronTrustSession } from './ultronTrustSession';
 
 export interface MemoryFact {
   id: string;
@@ -79,8 +80,25 @@ export class MemoryService {
     }
   }
 
-  public getContextFacts(): string[] {
+  public getContextFacts(enforceOwnerAuth: boolean = false): string[] {
+    if (enforceOwnerAuth && !ultronTrustSession.isOwnerVerified()) {
+      return ['[ACCESS_RESTRICTED: Owner Voice Authentication Required for personal memory retrieval]'];
+    }
     return this.longTermFacts.map((f) => f.fact);
+  }
+
+  public getProtectedFacts(): { facts: string[]; authorized: boolean; reason?: string } {
+    if (!ultronTrustSession.isOwnerVerified()) {
+      return {
+        facts: [],
+        authorized: false,
+        reason: 'Protected personal memory is locked. Owner voice authentication required.',
+      };
+    }
+    return {
+      facts: this.longTermFacts.map((f) => `[${f.category.toUpperCase()}] ${f.fact}`),
+      authorized: true,
+    };
   }
 
   public recordContext(ctx: {

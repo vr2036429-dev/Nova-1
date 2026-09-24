@@ -28,7 +28,7 @@ export type UltronState =
 
 export type VoiceEngineType = 'live_audio' | 'fallback_stt_tts';
 
-export type VoiceMode = 'wake' | 'wakeword' | 'continuous' | 'push_to_talk';
+export type VoiceMode = 'wake' | 'wakeword' | 'continuous' | 'continuous_owner' | 'push_to_talk';
 
 export type ViewTab = 
   | 'orb_hud' 
@@ -40,6 +40,7 @@ export type ViewTab =
   | 'tools' 
   | 'coder'
   | 'diagnostics' 
+  | 'security'
   | 'settings';
 
 export type ConfirmationLevel = 1 | 2 | 3; // 1 = Safe (auto), 2 = Sensitive (confirm), 3 = Restricted (biometric)
@@ -549,5 +550,180 @@ export interface SystemHealthSnapshot {
   buildEnvironment: boolean;
   issues: string[];
 }
+
+// -------------------------------------------------------------
+// ULTRON Owner Voice Authentication & Voice Lock Types
+// -------------------------------------------------------------
+export type VoiceAuthenticationState = 
+  | 'VOICE_IDLE' 
+  | 'LISTENING' 
+  | 'SPEECH_DETECTED' 
+  | 'AUTHENTICATING' 
+  | 'OWNER_VERIFIED' 
+  | 'UNKNOWN_SPEAKER' 
+  | 'AUTHENTICATION_FAILED' 
+  | 'AUTHENTICATION_REQUIRED' 
+  | 'EXECUTING_COMMAND' 
+  | 'SECURE_LOCK';
+
+export type VoiceSecuritySensitivity = 'strict' | 'balanced' | 'relaxed';
+
+export interface OwnerVoiceProfile {
+  ownerName: string;
+  voiceEmbedding: number[]; // 16-dimensional acoustic feature representation
+  enrollmentVersion: number;
+  securityThreshold: number; // 0.65 to 0.85
+  sensitivity: VoiceSecuritySensitivity;
+  isVoiceLockEnabled: boolean;
+  silentRejectUnknown: boolean;
+  antiSpoofingEnabled: boolean;
+  samplesCount: number;
+  enrolledPhrases: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VoiceAuthResult {
+  status: 'OWNER_VERIFIED' | 'UNKNOWN_SPEAKER' | 'UNCERTAIN' | 'SPOOF_DETECTED';
+  confidenceScore: number;
+  threshold: number;
+  antiSpoofScore: number;
+  speakerLabel: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface VoiceSecurityTestCase {
+  id: string;
+  name: string;
+  speaker: string;
+  sampleDescription: string;
+  expectedOutcome: 'ACCEPTED' | 'REJECTED' | 'IGNORED' | 'APPROVAL_REQUIRED';
+  actualOutcome?: 'ACCEPTED' | 'REJECTED' | 'IGNORED' | 'APPROVAL_REQUIRED';
+  score?: number;
+  passed?: boolean;
+}
+
+// -------------------------------------------------------------
+// Advanced Owner Identity & Multi-Layer Authentication Types
+// -------------------------------------------------------------
+export type AdaptiveRiskLevel = 
+  | 'LEVEL_0_PUBLIC' 
+  | 'LEVEL_1_PREFERRED' 
+  | 'LEVEL_2_REQUIRED' 
+  | 'LEVEL_3_STRONG';
+
+export type TrustLevel = 
+  | 'UNTRUSTED' 
+  | 'ELEVATED' 
+  | 'HIGH_TRUST' 
+  | 'MAXIMUM_SECURITY';
+
+export type AuthenticationMethod = 
+  | 'VOICE_ACOUSTIC' 
+  | 'DYNAMIC_CHALLENGE' 
+  | 'BIOMETRIC_ENCLAVE' 
+  | 'COMBINED';
+
+export interface UltronTrustSession {
+  sessionId: string;
+  ownerVerified: boolean;
+  verificationTime: number; // Unix timestamp ms
+  trustLevel: TrustLevel;
+  lastSpeakerCheck: number; // Unix timestamp ms
+  lastActivity: number;     // Unix timestamp ms
+  expirationTime: number;   // Unix timestamp ms
+  riskLevel: AdaptiveRiskLevel;
+  authMethod: AuthenticationMethod;
+}
+
+export interface DynamicChallenge {
+  challengeId: string;
+  phrase: string;
+  issuedAt: number;
+  expiresAt: number;
+  status: 'PENDING' | 'VERIFIED' | 'EXPIRED' | 'FAILED';
+  difficulty: 'STANDARD' | 'HIGH';
+}
+
+export type SecurityAuditEventType = 
+  | 'ENROLLMENT_SAMPLE'
+  | 'AUTHENTICATION_SUCCESS'
+  | 'AUTHENTICATION_FAILURE'
+  | 'SPEAKER_CHANGE_DETECTED'
+  | 'SPOOF_ATTEMPT_DETECTED'
+  | 'CHALLENGE_ISSUED'
+  | 'CHALLENGE_VERIFIED'
+  | 'TRUST_ESCALATED'
+  | 'TRUST_REVOKED'
+  | 'EMERGENCY_LOCK'
+  | 'RISK_GATE_BLOCKED';
+
+export interface SecurityAuditEntry {
+  id: string;
+  timestamp: string;
+  unixTime: number;
+  eventType: SecurityAuditEventType;
+  speakerLabel: string;
+  riskLevel: AdaptiveRiskLevel;
+  actionCategory: string;
+  result: 'AUTHORIZED' | 'DENIED' | 'CHALLENGE_REQUIRED' | 'REVOKED';
+  confidenceScore: number;
+  antiSpoofScore: number;
+  failureReason?: string;
+  metadata?: Record<string, any>;
+}
+
+export type AdvancedEnrollmentCondition = 
+  | 'normal' 
+  | 'quiet' 
+  | 'fast_cadence' 
+  | 'slow_deliberate' 
+  | 'far_field' 
+  | 'emotional_assertive';
+
+export interface AdvancedEnrollmentSample {
+  id: string;
+  condition: AdvancedEnrollmentCondition;
+  title: string;
+  phrase: string;
+  features: number[];
+  snrEstimate: number;
+  pitchF0Hz: number;
+  recordedAt: string;
+}
+
+export interface SpeakerChangeEvent {
+  timestamp: number;
+  previousSpeaker: string;
+  detectedSpeaker: string;
+  pitchShiftHz: number;
+  confidenceDrop: number;
+  reason: 'VOICE_SWITCH' | 'OVERLAPPING_SPEECH' | 'LONG_SILENCE_SHIFT' | 'ACOUSTIC_ANOMALY';
+  actionTaken: 'PAUSE_EXECUTION' | 'LOCK_SESSION' | 'REQUEST_CHALLENGE';
+}
+
+export interface OwnerIdentitySignals {
+  acousticConfidence: number;        // 0.0 to 1.0 (Pitch, formant dispersion, MFCC)
+  antiSpoofConfidence: number;       // 0.0 to 1.0 (Liveness, replay cutoff, vocoder noise)
+  trustSessionActive: boolean;       // Is session within valid TTL
+  trustSessionLevel: TrustLevel;      // UNTRUSTED -> MAXIMUM_SECURITY
+  wakeWordVerified: boolean;         // Did wake detection match speaker
+  biometricHardwareVerified: boolean;// Level 3 platform enclave
+  speakerConsistencyScore: number;   // Cross-utterance similarity
+  backgroundNoiseLevel: number;      // SNR ratio
+}
+
+export interface IdentityEvaluationResult {
+  authorized: boolean;
+  assignedRiskLevel: AdaptiveRiskLevel;
+  compositeScore: number;
+  primarySignal: string;
+  trustSession: UltronTrustSession;
+  requiresChallenge: boolean;
+  requiresBiometrics: boolean;
+  reason: string;
+}
+
 
 

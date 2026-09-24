@@ -90,6 +90,7 @@ export class VoicePipelineDiagnosticsService {
   private listeners: ((stages: VoicePipelineStageState[]) => void)[] = [];
   private turnStartTime: number = 0;
   private stageTimestamps: Map<VoicePipelineStageId, number> = new Map();
+  private recentLogs: Map<string, number> = new Map();
 
   private constructor() {
     this.reset();
@@ -142,6 +143,15 @@ export class VoicePipelineDiagnosticsService {
     };
 
     this.stages.set(id, updated);
+
+    // Prevent spamming identical errors multiple times within 1.5 seconds
+    const lastLogKey = `${id}_${status}_${message}`;
+    const lastLogTime = this.recentLogs.get(lastLogKey) || 0;
+    if (status === 'error' && now - lastLogTime < 1500) {
+      this.notify();
+      return;
+    }
+    this.recentLogs.set(lastLogKey, now);
 
     // Structured diagnostic logging as required by section 4 and 5
     const prefix = `[PIPELINE:${existing.stepNumber}_${id}]`;

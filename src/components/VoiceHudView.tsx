@@ -17,11 +17,15 @@ import {
   Zap,
   RotateCcw,
   Headphones,
-  Sliders
+  Sliders,
+  Lock,
+  Fingerprint,
+  ShieldCheck
 } from 'lucide-react';
 import { UltronState, VoiceMode, VoiceEngineType, LiveVoiceState } from '../types';
 import { UltronOrb } from './UltronOrb';
 import { VoicePipelineDiagnosticsPanel } from './VoicePipelineDiagnosticsPanel';
+import { ultronVoiceAuth } from '../services/ultronVoiceAuthService';
 
 interface VoiceHudViewProps {
   state: UltronState;
@@ -39,6 +43,7 @@ interface VoiceHudViewProps {
   onToggleMute?: () => void;
   onToggleEngine?: () => void;
   onInterruptAi?: () => void;
+  onOpenVoiceLock?: () => void;
   onSubmitCommand: (command: string, isVoiceInput?: boolean) => void;
 }
 
@@ -58,6 +63,7 @@ export const VoiceHudView: React.FC<VoiceHudViewProps> = ({
   onToggleMute,
   onToggleEngine,
   onInterruptAi,
+  onOpenVoiceLock,
   onSubmitCommand,
 }) => {
   const [manualText, setManualText] = useState('');
@@ -209,6 +215,18 @@ export const VoiceHudView: React.FC<VoiceHudViewProps> = ({
             />
           ))}
         </div>
+
+        {/* Owner Voice Lock Indicator Badge */}
+        {onOpenVoiceLock && (
+          <button
+            onClick={onOpenVoiceLock}
+            className="mt-2.5 flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0a1222]/80 border border-cyan-500/30 hover:border-cyan-400 text-xs font-mono-code text-cyan-300 transition-all hover:scale-105 active:scale-95 shadow-[0_0_10px_rgba(6,182,212,0.15)]"
+          >
+            <Lock className="w-3 h-3 text-cyan-400" />
+            <span>VOICE LOCK: ASIK ONLY</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+          </button>
+        )}
 
         {/* Subtitle / Transcription Box */}
         <div className="mt-3 max-w-lg w-full text-center min-h-[52px] px-4 flex flex-col items-center justify-center">

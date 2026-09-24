@@ -92,7 +92,16 @@ export class AudioInputManager {
       console.log(`[AudioInputManager] Microphonic capture active at ${inputSampleRate}Hz -> downsampling to 16kHz PCM.`);
       return true;
     } catch (err: any) {
-      console.error('[AudioInputManager] Microphone capture initialization failed:', err);
+      console.warn('[AudioInputManager] Microphone capture initialization notice:', err?.message || err);
+      const isPermDenied = err?.name === 'NotAllowedError' || 
+                           err?.name === 'PermissionDeniedError' || 
+                           err?.message?.toLowerCase().includes('permission') || 
+                           err?.message?.toLowerCase().includes('denied');
+      if (isPermDenied) {
+        voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'error', 'Microphone access denied by browser or system settings.');
+      } else {
+        voicePipelineDiagnostics.updateStage('MIC_PERMISSION', 'warning', `Microphone hardware initialization note: ${err?.message || err}`);
+      }
       this.stop();
       throw err;
     }
@@ -545,10 +554,18 @@ export class LiveVoiceSession {
       this.setState('LISTENING');
       return true;
     } catch (err: any) {
-      console.warn('[LiveVoiceSession] Native live session notice, transitioning to fallback:', err?.message || err);
+      const isPermDenied = err?.name === 'NotAllowedError' || 
+                           err?.name === 'PermissionDeniedError' || 
+                           err?.message?.toLowerCase().includes('permission') || 
+                           err?.message?.toLowerCase().includes('denied');
+      console.warn('[LiveVoiceSession] Live session notice:', err?.message || err);
       this.setState('STOPPED');
       this.stopSession();
-      this.callbacks?.onError(err?.message || 'Live session unavailable', true);
+      // Only fallback if failure wasn't due to hard microphone denial
+      this.callbacks?.onError(
+        isPermDenied ? 'Microphone permission denied by browser or system settings.' : (err?.message || 'Live session unavailable'), 
+        !isPermDenied
+      );
       return false;
     }
   }

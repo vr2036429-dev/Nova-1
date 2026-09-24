@@ -38,6 +38,11 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { ScreenReaderModal } from './components/ScreenReaderModal';
 import { AppWindowModal } from './components/AppWindowModal';
 import { SettingsModal } from './components/SettingsModal';
+import { VoiceLockModal } from './components/VoiceLockModal';
+import { OwnerSecurityCenterView } from './components/OwnerSecurityCenterView';
+import { ultronVoiceAuth } from './services/ultronVoiceAuthService';
+import { ultronOwnerIdentityEngine } from './services/ultronOwnerIdentityEngine';
+import { ultronTrustSession } from './services/ultronTrustSession';
 
 export default function App() {
   // Core state machine
@@ -111,6 +116,7 @@ export default function App() {
   });
 
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [voiceLockModalOpen, setVoiceLockModalOpen] = useState(false);
 
   // Workflow state
   const [activeWorkflowId, setActiveWorkflowId] = useState<string | null>(null);
@@ -182,9 +188,54 @@ export default function App() {
     setTranscription('');
     setState('THINKING');
 
+    // -------------------------------------------------------------
+    // Advanced Multi-Layer Owner Identity & Security Verification
+    // HEAR -> IDENTIFY -> VERIFY -> AUTHORIZE -> EXECUTE
+    // -------------------------------------------------------------
+    const identityEval = await ultronOwnerIdentityEngine.evaluateVoiceCommand({
+      utteranceText: trimmed,
+      isVoiceInput,
+      simulatedSpeaker: 'ASIK',
+    });
+
+    if (identityEval.primarySignal === 'EMERGENCY_LOCK_COMMAND') {
+      setState('STANDBY');
+      setTranscription('');
+      const text = 'Emergency Voice Lock engaged, ASIK. All active trust sessions revoked and assistant secured.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `lock_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      return;
+    }
+
+    if (!identityEval.authorized) {
+      console.warn(`[ULTRON Security Guard] Command execution blocked: ${identityEval.reason}`);
+      setState('STANDBY');
+      if (identityEval.requiresBiometrics || identityEval.assignedRiskLevel === 'LEVEL_3_STRONG') {
+        setBiometricModal({
+          isOpen: true,
+          title: 'Strong Owner Authentication Required',
+          description: identityEval.reason,
+          onSuccess: () => {
+            ultronTrustSession.escalateTrust('BIOMETRIC_ENCLAVE', 0.99);
+            setBiometricModal((prev) => ({ ...prev, isOpen: false }));
+            handleExecuteCommand(commandText, false);
+          },
+        });
+      }
+      return;
+    }
+
     if (isVoiceInput) {
       voicePipelineDiagnostics.updateStage('AUDIO_STREAM', 'success', `Captured utterance: "${trimmed}"`);
-      voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'active', 'Dispatching query to ULTRON multimodal intelligence brain...');
+      voicePipelineDiagnostics.updateStage('AI_RESPONSE', 'active', 'Dispatching query to ULTRON multimodal brain (Owner Authenticated)...');
       voicePipelineDiagnostics.updateStage('UI_STATE', 'active', 'UI state transitioned to THINKING');
     }
 
@@ -195,8 +246,35 @@ export default function App() {
       commandText = resolvedResult.resolvedPrompt;
     }
 
-    // Direct Voice Directive: System Diagnostics Check
+    // Direct Voice Directive: Owner Voice Lock & Security Center
     const lowerCmd = commandText.toLowerCase();
+    if (
+      lowerCmd.includes('security center') ||
+      lowerCmd.includes('owner security') ||
+      lowerCmd.includes('voice security') ||
+      lowerCmd.includes('open security') ||
+      lowerCmd.includes('voice lock') ||
+      lowerCmd.includes('voice auth') ||
+      lowerCmd.includes('enroll voice')
+    ) {
+      setActiveTab('security');
+      const text = 'Opening ULTRON Owner Security Center, ASIK. Multi-layer voice identity and trust session parameters online.';
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `sec_${Date.now()}`,
+          role: 'assistant',
+          content: text,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        },
+      ]);
+      setAssistantSpokenText(text);
+      setState('SPEAKING');
+      voiceService.speak(text);
+      return;
+    }
+
+    // Direct Voice Directive: System Diagnostics Check
     if (lowerCmd.includes('run diagnostic') || lowerCmd.includes('system check') || lowerCmd.includes('check system health')) {
       const report = await diagnosticEngine.runSystemSelfCheck();
       setActiveTab('diagnostics');
@@ -587,9 +665,12 @@ export default function App() {
         if (canFallback) {
           console.log('[Live Voice Engine] Seamlessly switching to Standard Voice engine...');
           handleUpdatePreferences({ voiceEngine: 'fallback_stt_tts' });
-          voiceService.startListening();
+          voiceService.startListening(preferencesRef.current.wakeWord, true);
           setIsListening(true);
           setState('LISTENING');
+        } else {
+          setIsListening(false);
+          setState('STANDBY');
         }
       },
     });
@@ -610,6 +691,8 @@ export default function App() {
       },
       onError: (error: string) => {
         console.warn('[ULTRON Voice Pipeline] Recognition notice:', error);
+        setIsListening(false);
+        setState('STANDBY');
       },
       onStateChange: (listening: boolean) => {
         setIsListening(listening);
@@ -704,14 +787,17 @@ export default function App() {
           },
           recentHistory: messages,
         });
-        if (!started) {
-          console.warn('[ULTRON Core] Live session could not start. Falling back to Standard Voice.');
-          voiceService.startListening();
+        if (started) {
+          setIsListening(true);
+        } else {
+          console.warn('[ULTRON Core] Live session could not start. Standing by.');
+          setIsListening(false);
+          setState('STANDBY');
         }
       } else {
-        voiceService.startListening();
+        voiceService.startListening(preferences.wakeWord, true);
+        setIsListening(true);
       }
-      setIsListening(true);
     }
   };
 
@@ -808,6 +894,7 @@ export default function App() {
         biometricEnrolled={preferences.biometricEnrolled}
         onToggleTorch={handleToggleTorch}
         onToggleMic={handleToggleListening}
+        onOpenVoiceLock={() => setVoiceLockModalOpen(true)}
       />
 
       {/* Main Content Area based on Tab */}
@@ -829,6 +916,7 @@ export default function App() {
             onToggleMute={handleToggleMute}
             onToggleEngine={handleToggleEngine}
             onInterruptAi={handleInterruptAi}
+            onOpenVoiceLock={() => setVoiceLockModalOpen(true)}
             onSubmitCommand={(cmd, isVoice) => handleExecuteCommand(cmd, isVoice)}
           />
         )}
@@ -910,6 +998,10 @@ export default function App() {
         {activeTab === 'diagnostics' && (
           <DiagnosticsView />
         )}
+
+        {activeTab === 'security' && (
+          <OwnerSecurityCenterView />
+        )}
       </main>
 
       {/* MODALS */}
@@ -965,6 +1057,12 @@ export default function App() {
         onClose={() => setSettingsModalOpen(false)}
         onUpdatePreferences={handleUpdatePreferences}
         onClearMemory={handleClearMemory}
+      />
+
+      {/* 6. Owner Voice Authentication & Voice Lock Modal */}
+      <VoiceLockModal
+        isOpen={voiceLockModalOpen}
+        onClose={() => setVoiceLockModalOpen(false)}
       />
     </div>
   );
