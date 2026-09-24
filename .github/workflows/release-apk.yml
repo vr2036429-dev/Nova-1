@@ -22,7 +22,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2. Compute dynamic version string (v1.0.<run_number>)
+      # 2. Dynamic Versioning from GitHub Actions Run Number
       - name: Compute Build Version
         id: versioning
         run: |
@@ -33,7 +33,7 @@ jobs:
           echo "version_code=${{ github.run_number }}" >> $GITHUB_OUTPUT
           echo "Starting ZERO-SETUP build for ULTRON: ${VERSION_TAG}"
 
-      # 3. Setup Node.js 20 environment with caching
+      # 3. Setup Node.js 20 environment with npm caching
       - name: Setup Node.js 20
         uses: actions/setup-node@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 5. Gradle Caching for fast builds
+      # 5. Gradle Caching for faster builds
       - name: Setup Gradle Cache
         uses: gradle/actions/setup-gradle@v4
 
@@ -56,23 +56,12 @@ jobs:
         run: |
           npm ci || npm install
 
-      # 7. Optional Gemini API Key injection from Secrets (if provided, otherwise fallback to in-app settings)
-      - name: Configure Production Environment
-        env:
-          OPTIONAL_GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: |
-          echo "VITE_APP_VERSION=${{ steps.versioning.outputs.clean_version }}" > .env.production
-          if [ -n "$OPTIONAL_GEMINI_KEY" ]; then
-            echo "VITE_GEMINI_API_KEY=${OPTIONAL_GEMINI_KEY}" >> .env.production
-            echo "GEMINI_API_KEY=${OPTIONAL_GEMINI_KEY}" >> .env.production
-          fi
-
-      # 8. Build Web Application Assets with Vite
+      # 7. Build Web Application Assets with Vite
       - name: Build Web Assets (Vite)
         run: |
           npx vite build
 
-      # 9. Sync & Initialize Capacitor Android Project
+      # 8. Sync & Initialize Capacitor Android Project + Inject Permissions
       - name: Setup & Sync Capacitor Android
         run: |
           if [ ! -d "android" ]; then
@@ -80,7 +69,6 @@ jobs:
             npx cap add android
           fi
 
-          # Ensure AndroidManifest permissions are patched
           MANIFEST_PATH="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST_PATH" ]; then
             echo "Injecting Android permissions into AndroidManifest.xml..."
@@ -94,7 +82,6 @@ jobs:
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />'
 
-            # Insert permissions right after <manifest ...> if not already present
             if ! grep -q "RECORD_AUDIO" "$MANIFEST_PATH"; then
               sed -i "/<manifest/a $PERMISSIONS" "$MANIFEST_PATH"
             fi
@@ -102,37 +89,28 @@ jobs:
 
           npx cap sync android
 
-      # 10. ZERO-SETUP Auto-Generate Production Keystore on the fly (No Secrets Required!)
+      # 9. ZERO-SETUP: Generate Production Keystore on the fly inside the workflow
       - name: Auto-Generate Android Keystore
         run: |
           mkdir -p android/app
-          
-          # If custom secret provided, use it, else generate on the fly
-          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
-            echo "Using custom keystore from repository secrets."
-          else
-            echo "Generating self-contained release keystore..."
-            keytool -genkeypair -v \
-              -keystore android/app/release.keystore \
-              -alias ultron \
-              -keyalg RSA \
-              -keysize 2048 \
-              -validity 10000 \
-              -storepass ultron123 \
-              -keypass ultron123 \
-              -dname "CN=ULTRON, OU=AI, O=Jarvis, L=Global, S=Core, C=US"
-            echo "Auto-generated release keystore ready at android/app/release.keystore"
-          fi
+          echo "Generating self-contained release keystore..."
+          keytool -genkeypair -v \
+            -keystore android/app/release.keystore \
+            -alias ultron \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass ultron123 \
+            -keypass ultron123 \
+            -dname "CN=ULTRON, OU=AI, O=Jarvis, L=Global, S=Core, C=US"
+          echo "Release keystore generated successfully at android/app/release.keystore"
 
-      # 11. Ensure Gradle build.gradle includes zero-setup signing fallback
+      # 10. Configure build.gradle with Built-in Signing (No external config needed)
       - name: Configure build.gradle Signing Config
         run: |
           BUILD_GRADLE="android/app/build.gradle"
           if [ -f "$BUILD_GRADLE" ]; then
-            # Ensure release signing config is wired to release.keystore
-            if ! grep -q "release.keystore" "$BUILD_GRADLE"; then
-              python3 -c '
+            python3 -c '
 path = "android/app/build.gradle"
 with open(path, "r") as f:
     content = f.read()
@@ -141,9 +119,9 @@ signing_snippet = """
     signingConfigs {
         release {
             storeFile file("release.keystore")
-            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "ultron123"
-            keyAlias System.getenv("KEY_ALIAS") ?: "ultron"
-            keyPassword System.getenv("KEY_PASSWORD") ?: "ultron123"
+            storePassword "ultron123"
+            keyAlias "ultron"
+            keyPassword "ultron123"
         }
     }
 """
@@ -156,26 +134,25 @@ if "signingConfig signingConfigs.release" not in content:
 with open(path, "w") as f:
     f.write(content)
 '
-            fi
           fi
 
-      # 12. Ensure gradlew is executable
+      # 11. Grant Execute Permission to gradlew
       - name: Make Gradlew Executable
         run: chmod +x android/gradlew
 
-      # 13. Build Signed Release APK with Gradle
+      # 12. Build Signed Release APK with Gradle
       - name: Build Release APK
         env:
           APP_VERSION_NAME: ${{ steps.versioning.outputs.clean_version }}
           APP_VERSION_CODE: ${{ steps.versioning.outputs.version_code }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || 'ultron123' }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'ultron' }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || 'ultron123' }}
+          KEYSTORE_PASSWORD: "ultron123"
+          KEY_ALIAS: "ultron"
+          KEY_PASSWORD: "ultron123"
         run: |
           cd android
           ./gradlew assembleRelease --stacktrace
 
-      # 14. Locate, Verify and Rename Release APK
+      # 13. Rename and Prepare APK for GitHub Release
       - name: Package Final APK
         id: apk_step
         run: |
@@ -192,9 +169,9 @@ with open(path, "w") as f:
           FINAL_NAME="ULTRON-${{ steps.versioning.outputs.tag }}.apk"
           cp "$APK_PATH" "$FINAL_NAME"
           echo "apk_file=$FINAL_NAME" >> $GITHUB_OUTPUT
-          echo "Generated signed APK: $FINAL_NAME ($(du -h "$FINAL_NAME" | cut -f1))"
+          echo "Generated signed APK: $FINAL_NAME"
 
-      # 15. Create Automatic GitHub Tag & Release with APK Attached
+      # 14. Automatically Tag & Publish Release on GitHub
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
@@ -205,20 +182,20 @@ with open(path, "w") as f:
           prerelease: false
           generate_release_notes: true
           body: |
-            ### 🤖 ULTRON Jarvis Android Assistant
+            ### 🤖 ULTRON Jarvis Android Assistant - Auto Release
             
-            **Release**: `${{ steps.versioning.outputs.tag }}` (Build #${{ steps.versioning.outputs.version_code }})
+            **Version**: `${{ steps.versioning.outputs.tag }}` (Build #${{ steps.versioning.outputs.version_code }})
             
             #### 📦 Android Package
             - **Download Signed APK**: [`${{ steps.apk_step.outputs.apk_file }}`](https://github.com/${{ github.repository }}/releases/download/${{ steps.versioning.outputs.tag }}/${{ steps.apk_step.outputs.apk_file }})
             
-            #### ⚡ Highlights
-            - 🎙️ Multi-Layer Owner Voice Authentication (ASIK) & Anti-Spoof Engine
-            - 🌐 Seamless touch gesture tab cycling & continuous speech interaction
-            - 📱 Device integrations (Torch, Vibration, Screen Reader, Android Settings)
-            - 🔑 In-app Gemini API Key configuration supported (Settings -> API Key)
+            #### ⚡ Features
+            - 🎙️ Multi-layer Owner Voice Authentication (ASIK) & Anti-Spoof Protection
+            - 🔄 Touch gesture navigation & continuous voice loop
+            - 📱 Device Hardware Controls (Flashlight, Volume, Vibration, System Settings)
+            - 🔑 In-app Gemini API Key configuration via Settings (stored on device)
             
             ---
-            *Zero-Setup automatic build generated on code push to `${{ github.ref_name }}`.*
+            *Zero-Setup automatic build generated on commit push to `${{ github.ref_name }}`.*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
